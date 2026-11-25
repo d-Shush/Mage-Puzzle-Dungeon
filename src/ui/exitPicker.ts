@@ -1,62 +1,52 @@
-import { SIDES, hexCorners, sideAngle } from '../core/hex';
+import { SIDES, sideAngle } from '../core/grid';
 import { EXIT_LABELS } from '../core/roomTypes';
-import type { Side } from '../core/types';
+import type { RoomType, Side } from '../core/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const R = 60;
-const SHORT: Record<Side, string> = { n: 'N', ne: 'NE', se: 'SE', s: 'S', sw: 'SW', nw: 'NW' };
+const R = 52;
+const SHORT: Record<Side, string> = { n: 'N', e: 'E', s: 'S', w: 'W' };
+
+function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>): SVGElementTagNameMap[K] {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  return e;
+}
 
 /**
- * Exit selector: a hexagon whose six edges toggle on click, plus a labelled
- * checkbox for each exit. Both stay in sync.
+ * Exit selector: a room orb with a clickable bar on each side, plus a
+ * labelled checkbox for each exit. Both stay in sync.
  */
 export class ExitPicker {
   readonly element: HTMLElement;
   private selected = new Set<Side>();
-  private readonly edges = new Map<Side, SVGGElement>();
+  private readonly bars = new Map<Side, SVGGElement>();
   private readonly boxes = new Map<Side, HTMLInputElement>();
-  private readonly floor: SVGPolygonElement;
+  private readonly orb: SVGCircleElement;
   onChange: () => void = () => {};
 
   constructor(idPrefix: string) {
-    const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '-100 -92 200 184');
-    svg.setAttribute('class', 'exit-hex');
-    svg.setAttribute('aria-hidden', 'true');
+    const svg = el('svg', { viewBox: '-90 -90 180 180', class: 'exit-orb', 'aria-hidden': 'true' });
+    svg.append(el('circle', { class: 'exit-well', r: R + 6 }));
+    this.orb = el('circle', { class: 'exit-floor', r: R });
+    svg.append(this.orb, el('circle', { r: R, fill: 'url(#exit-shine)' }));
+    svg.prepend(this.buildDefs());
 
-    const corners = hexCorners(R);
-    this.floor = document.createElementNS(SVG_NS, 'polygon');
-    this.floor.setAttribute('points', corners.map((p) => `${p.x},${p.y}`).join(' '));
-    this.floor.setAttribute('class', 'exit-floor');
-    svg.append(this.floor);
-
-    SIDES.forEach((side, k) => {
-      // Side k sits between corners (k+4)%6 and (k+5)%6 of a flat-top hex.
-      const a = corners[(k + 4) % 6]!;
-      const b = corners[(k + 5) % 6]!;
-      const g = document.createElementNS(SVG_NS, 'g');
-      g.setAttribute('class', 'exit-edge');
-      const hit = document.createElementNS(SVG_NS, 'line');
-      const line = document.createElementNS(SVG_NS, 'line');
-      for (const l of [hit, line]) {
-        l.setAttribute('x1', String(a.x));
-        l.setAttribute('y1', String(a.y));
-        l.setAttribute('x2', String(b.x));
-        l.setAttribute('y2', String(b.y));
-      }
-      hit.setAttribute('class', 'exit-hit');
-      line.setAttribute('class', 'exit-line');
-      const rad = (sideAngle(side) * Math.PI) / 180;
-      const label = document.createElementNS(SVG_NS, 'text');
-      label.setAttribute('x', String(Math.cos(rad) * (R + 18)));
-      label.setAttribute('y', String(Math.sin(rad) * (R + 18)));
-      label.setAttribute('class', 'exit-label');
+    for (const side of SIDES) {
+      const g = el('g', { class: 'exit-edge' });
+      const a = sideAngle(side);
+      const rot = el('g', { transform: `rotate(${a + 90})` });
+      rot.append(
+        el('rect', { class: 'exit-hit', x: -R * 0.55, y: -R - 16, width: R * 1.1, height: 30 }),
+        el('rect', { class: 'exit-bar', x: -R * 0.35, y: -R - 3, width: R * 0.7, height: 8, rx: 4 }),
+      );
+      const rad = (a * Math.PI) / 180;
+      const label = el('text', { class: 'exit-label', x: Math.cos(rad) * (R + 24), y: Math.sin(rad) * (R + 24) });
       label.textContent = SHORT[side];
-      g.append(hit, line, label);
+      g.append(rot, label);
       g.addEventListener('click', () => this.toggle(side));
-      this.edges.set(side, g);
+      this.bars.set(side, g);
       svg.append(g);
-    });
+    }
 
     const list = document.createElement('div');
     list.className = 'exit-list';
@@ -83,9 +73,19 @@ export class ExitPicker {
     this.render();
   }
 
-  /** Floor colour of the preview hexagon (matches the room type). */
-  setColor(color: string): void {
-    this.floor.style.fill = color;
+  /** Colour the preview orb like a room of this type. */
+  setType(type: RoomType): void {
+    this.orb.setAttribute('fill', `url(#orb-${type})`);
+  }
+
+  private buildDefs(): SVGDefsElement {
+    const defs = el('defs', {});
+    const shine = el('radialGradient', { id: 'exit-shine', cx: 0.34, cy: 0.26, r: 0.55 });
+    for (const [o, op] of [[0, 0.85], [0.3, 0.2], [1, 0]] as const) {
+      shine.append(el('stop', { offset: o, 'stop-color': '#fff', 'stop-opacity': op }));
+    }
+    defs.append(shine);
+    return defs;
   }
 
   private toggle(side: Side, on = !this.selected.has(side)): void {
@@ -98,7 +98,7 @@ export class ExitPicker {
   private render(): void {
     for (const side of SIDES) {
       const on = this.selected.has(side);
-      this.edges.get(side)?.classList.toggle('is-on', on);
+      this.bars.get(side)?.classList.toggle('is-on', on);
       const box = this.boxes.get(side);
       if (box) box.checked = on;
     }

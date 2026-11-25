@@ -7,7 +7,7 @@ import { BOARD_SLOTS } from '../src/data/board';
 
 const TEST_ROOMS: RoomDefinition[] = [
   { id: 1, name: 'Red Room', description: '', type: 'red', doors: ['n'] },
-  { id: 2, name: 'Blue Room', description: '', type: 'blue', doors: ['n', 's'] },
+  { id: 2, name: 'Blue Room', description: '', type: 'blue', doors: ['n', 'e'] },
   { id: 3, name: 'Green Room', description: '', type: 'green', doors: [] },
 ];
 
@@ -33,33 +33,34 @@ describe('Dungeon', () => {
     expect(dungeon.place('Z9', 1).ok).toBe(false);
     unwrap(dungeon.place('A4', 3));
     expect(dungeon.place('A4', 1).ok).toBe(false);
-    expect(dungeon.place('G4', 1)).toEqual({ ok: false, error: 'The prismatic core cannot hold a room' });
+    expect(dungeon.place('C4', 1)).toEqual({ ok: false, error: 'The core cannot hold a room' });
+    expect(dungeon.place('LIBRARY', 1)).toEqual({ ok: false, error: "Shaper's Library cannot hold a room" });
   });
 
   it('places each room only once', () => {
     unwrap(dungeon.place('A4', 1));
-    expect(dungeon.place('B3', 1).ok).toBe(false);
+    expect(dungeon.place('B2', 1).ok).toBe(false);
     expect(dungeon.available().map((d) => d.id)).toEqual([2, 3]);
   });
 
   it('red rooms cannot rotate or move', () => {
     const red = unwrap(dungeon.place('A4', 1));
     expect(dungeon.rotate(red.instanceId).ok).toBe(false);
-    expect(dungeon.move(red.instanceId, 'C4').ok).toBe(false);
+    expect(dungeon.move(red.instanceId, 'B2').ok).toBe(false);
   });
 
   it('blue rooms rotate but do not move', () => {
     const blue = unwrap(dungeon.place('B3', 2));
     expect(unwrap(dungeon.rotate(blue.instanceId)).rotation).toBe(1);
     expect(unwrap(dungeon.rotate(blue.instanceId, -1)).rotation).toBe(0);
-    expect(unwrap(dungeon.rotate(blue.instanceId, -1)).rotation).toBe(5);
-    expect(dungeon.move(blue.instanceId, 'C4').ok).toBe(false);
+    expect(unwrap(dungeon.rotate(blue.instanceId, -1)).rotation).toBe(3);
+    expect(dungeon.move(blue.instanceId, 'B2').ok).toBe(false);
   });
 
   it('green rooms rotate and move', () => {
     const green = unwrap(dungeon.place('B5', 3));
     expect(unwrap(dungeon.rotate(green.instanceId)).rotation).toBe(1);
-    expect(unwrap(dungeon.move(green.instanceId, 'M4')).slotId).toBe('M4');
+    expect(unwrap(dungeon.move(green.instanceId, 'E7')).slotId).toBe('E7');
     expect(dungeon.roomAt('B5')).toBeUndefined();
     expect(dungeon.get(green.instanceId)?.rotation).toBe(1);
   });
@@ -68,18 +69,20 @@ describe('Dungeon', () => {
     unwrap(dungeon.place('A4', 1));
     const green = unwrap(dungeon.place('B5', 3));
     expect(dungeon.move(green.instanceId, 'A4').ok).toBe(false);
-    expect(dungeon.move(green.instanceId, 'G4').ok).toBe(false);
+    expect(dungeon.move(green.instanceId, 'C4').ok).toBe(false);
+    expect(dungeon.move(green.instanceId, 'UNKNOWN').ok).toBe(false);
     const targets = dungeon.moveTargets(green.instanceId);
     expect(targets).not.toContain('A4');
-    expect(targets).not.toContain('G4');
-    expect(targets).toHaveLength(37 - 3);
+    expect(targets).not.toContain('C4');
+    expect(targets).not.toContain('LIBRARY');
+    expect(targets).toHaveLength(35 - 3); // grid minus core, A4 and its own slot
   });
 
   it('takes a deleted room off the board and reflects edits', () => {
     let calls = 0;
     dungeon.subscribe(() => calls++);
     unwrap(dungeon.place('A4', 1));
-    unwrap(dungeon.catalog.update(1, { name: 'Renamed', description: '', type: 'blue', doors: [] }));
+    unwrap(dungeon.catalog.update(1, { name: 'Renamed', description: '', type: 'blue', doors: ['w'] }));
     expect(dungeon.definitionOf(dungeon.roomAt('A4')!).name).toBe('Renamed');
     unwrap(dungeon.catalog.remove(1));
     expect(dungeon.roomAt('A4')).toBeUndefined();
@@ -90,7 +93,7 @@ describe('Dungeon', () => {
     unwrap(dungeon.place('A4', 3));
     const good = [{ instanceId: 'room-7', definitionId: 1, slotId: 'B3', rotation: 0 as const }];
     expect(dungeon.load(good).ok).toBe(true);
-    expect(unwrap(dungeon.place('C4', 2)).instanceId).toBe('room-8');
+    expect(unwrap(dungeon.place('C3', 2)).instanceId).toBe('room-8');
 
     const before = dungeon.list();
     const twice = [
@@ -98,8 +101,8 @@ describe('Dungeon', () => {
       { instanceId: 'b', definitionId: 1, slotId: 'B5', rotation: 0 as const },
     ];
     expect(dungeon.load(twice).ok).toBe(false);
-    expect(dungeon.load([{ ...good[0]!, slotId: 'G4' }]).ok).toBe(false);
-    expect(dungeon.load([{ ...good[0]!, rotation: 9 as never }]).ok).toBe(false);
+    expect(dungeon.load([{ ...good[0]!, slotId: 'C4' }]).ok).toBe(false);
+    expect(dungeon.load([{ ...good[0]!, rotation: 4 as never }]).ok).toBe(false);
     expect(dungeon.list()).toEqual(before);
   });
 });
@@ -107,10 +110,12 @@ describe('Dungeon', () => {
 describe('party marker', () => {
   const make = () => new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(TEST_ROOMS));
 
-  it('starts off the map and can go on any slot, including empty ones and the core', () => {
+  it('starts off the map and can go on any slot, including the core and landmarks', () => {
     const d = make();
     expect(d.party).toBeUndefined();
-    expect(d.setParty('G4').ok).toBe(true);
+    expect(d.setParty('C4').ok).toBe(true);
+    expect(d.setParty('LIBRARY').ok).toBe(true);
+    expect(d.setParty('UNKNOWN').ok).toBe(true);
     expect(d.setParty('A4').ok).toBe(true);
     expect(d.party).toBe('A4');
     expect(d.setParty('Z9').ok).toBe(false);
@@ -123,15 +128,15 @@ describe('party marker', () => {
     const d = make();
     const green = unwrap(d.place('B5', 3));
     d.setParty('B5');
-    unwrap(d.move(green.instanceId, 'M4'));
-    expect(d.party).toBe('M4');
+    unwrap(d.move(green.instanceId, 'E7'));
+    expect(d.party).toBe('E7');
   });
 
   it('stays put when a different room moves', () => {
     const d = make();
     const green = unwrap(d.place('B5', 3));
     d.setParty('A4');
-    unwrap(d.move(green.instanceId, 'M4'));
+    unwrap(d.move(green.instanceId, 'E7'));
     expect(d.party).toBe('A4');
   });
 });

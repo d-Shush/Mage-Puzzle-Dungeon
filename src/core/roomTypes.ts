@@ -29,11 +29,9 @@ export const MOVE_RANGE: 'any' | 'adjacent' = 'any';
 /** Exit names, in the order the room editor lists them. */
 export const EXIT_LABELS: ReadonlyArray<readonly [Side, string]> = [
   ['n', 'North'],
-  ['nw', 'North-West'],
-  ['sw', 'South-West'],
+  ['e', 'East'],
   ['s', 'South'],
-  ['se', 'South-East'],
-  ['ne', 'North-East'],
+  ['w', 'West'],
 ];
 
 export const exitName = (side: Side): string => EXIT_LABELS.find(([s]) => s === side)?.[1] ?? side;

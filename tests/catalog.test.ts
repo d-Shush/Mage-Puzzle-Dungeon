@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { RoomCatalog, validateRoomInput } from '../src/core/catalog';
 import type { RoomInput } from '../src/core/types';
 
-const input: RoomInput = { name: '  Hall of Echoes ', description: ' Whispers. ', type: 'blue', doors: ['ne', 'n', 's'] };
+const input: RoomInput = { name: '  Hall of Echoes ', description: ' Whispers. ', type: 'blue', doors: ['w', 'n', 's'] };
 
 describe('validateRoomInput', () => {
   it('trims text and sorts exits clockwise', () => {
     expect(validateRoomInput(input)).toEqual({
       ok: true,
-      value: { name: 'Hall of Echoes', description: 'Whispers.', type: 'blue', doors: ['n', 'ne', 's'] },
+      value: { name: 'Hall of Echoes', description: 'Whispers.', type: 'blue', doors: ['n', 's', 'w'] },
     });
   });
 
@@ -17,6 +17,7 @@ describe('validateRoomInput', () => {
     expect(validateRoomInput({ ...input, name: 'x'.repeat(41) }).ok).toBe(false);
     expect(validateRoomInput({ ...input, type: 'purple' as never }).ok).toBe(false);
     expect(validateRoomInput({ ...input, doors: ['up' as never] }).ok).toBe(false);
+    expect(validateRoomInput({ ...input, doors: ['ne' as never] }).ok).toBe(false); // hex exits are gone
   });
 
   it('allows a room with no exits and no description', () => {

@@ -1,9 +1,10 @@
 # Mage Puzzle Dungeon
 
 A browser-based dungeon board for a D&D campaign, seen top-down in 2D. The
-board is a fixed, symmetric hexagon of 37 hex slots (columns of 4-5-6-7-6-5-4,
-three rings around the centre). All slots start empty except the **prismatic
-core** (G4) in the exact centre, which can never hold a room.
+board is a fixed 5 × 7 grid of round slots (columns A–E, rows 1–7). All slots
+start empty except the dark **core** orb in the middle (C4), which never holds
+a room. Two landmarks sit outside the grid: **Shaper's Library** above C1 and
+the **Unknown** below C7. They hold no rooms, but the party can stand there.
 
 The DM creates rooms in the app (**+ New room**), each with:
 
@@ -11,14 +12,14 @@ The DM creates rooms in the app (**+ New room**), each with:
 2. a **description for players**
 3. a **type**:
 
-   | Type      | Glyph | Rotate          | Move                  |
-   | --------- | ----- | --------------- | --------------------- |
-   | **Red**   | ◆     | no              | no                    |
-   | **Blue**  | ⟳     | yes, 60° steps  | no                    |
-   | **Green** | ✥     | yes, 60° steps  | yes, to an empty slot |
+   | Type      | Rotate          | Move                  |
+   | --------- | --------------- | --------------------- |
+   | **Red**   | no              | no                    |
+   | **Blue**  | yes, 90° steps  | no                    |
+   | **Green** | yes, 90° steps  | yes, to an empty slot |
 
-4. its **exits**: any of North, North-West, South-West, South, South-East,
-   North-East. Exits turn with the room.
+4. its **exits**: any of North, East, South, West, shown as gold bars on the
+   room's orb. Exits turn with the room.
 
 Each room gets a number and can be on the board once.
 
@@ -73,7 +74,7 @@ device to share one map between them.
   **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
   (or **P**) then click a slot, or drag the token. It can sit on any slot,
-  and travels with a green room when that room moves.
+  the core or a landmark, and travels with a green room when that room moves.
 
 ## Saving and cloud sync
 
@@ -105,9 +106,11 @@ and the gist stay.
 
 ## Slot labels
 
-Letters are half-rows from the top (A = top point … M = bottom point), numbers
-are columns 1–7 from the left. A4 is the top slot, M4 the bottom, D1/F1/H1/J1
-the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to rename.
+Columns A–E from the left, rows 1–7 from the top: A1 is top left, E7 bottom
+right, C4 the core. The layout (size, core, landmarks) is in `src/data/board.ts`.
+
+Saves from the earlier hex board are converted automatically: rooms are kept,
+NE/SE exits become East and NW/SW become West, and rooms need placing again.
 
 ## Project structure
 
@@ -118,25 +121,25 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
 │   ├── styles.css
 │   ├── core/                # Game rules — no DOM, fully unit-tested
 │   │   ├── types.ts         # SlotDefinition, RoomDefinition, RoomInstance, RoomType…
-│   │   ├── hex.ts           # Hex maths: neighbours, sides, rotation, pixel layout
+│   │   ├── grid.ts          # Grid maths: neighbours, sides, rotation
 │   │   ├── board.ts         # Validated fixed board (slots by id / position)
 │   │   ├── catalog.ts       # Room list: create / edit / delete, validation
 │   │   ├── roomTypes.ts     # What red / blue / green allow, colours, exit names
 │   │   ├── dungeon.ts       # Board state: place / rotate / move / remove
 │   │   └── persistence.ts   # Save file format, autosave, import validation
 │   ├── data/
-│   │   ├── board.ts         # ★ Board layout and slot labels
+│   │   ├── board.ts         # ★ Board layout: grid size, core, landmarks
 │   │   └── rooms.ts         # Optional built-in rooms (used when nothing is saved)
 │   ├── sync/
 │   │   ├── remoteStore.ts   # Cloud store interface, errors, revision stamps
 │   │   ├── gistStore.ts     # GitHub Gist implementation (api.github.com)
 │   │   └── syncManager.ts   # Upload / download / conflict logic
 │   ├── render/
-│   │   └── boardView.ts     # SVG board: frame, slots, rooms, doors, prismatic core
+│   │   └── boardView.ts     # SVG board: frame, slots, room orbs, exits, landmarks
 │   └── ui/
 │       ├── controller.ts    # Interaction state: selection, move, picker, editor
 │       ├── roomEditor.ts    # Create / edit room dialog
-│       ├── exitPicker.ts    # Clickable hexagon + checkboxes for exits
+│       ├── exitPicker.ts    # Clickable room orb + checkboxes for exits
 │       ├── roomPicker.ts    # Popover to choose a room for an empty slot
 │       ├── controlPanel.ts  # Side panel: selected room, party, room list, files
 │       ├── syncPanel.ts     # Cloud sync section and connect dialog
@@ -152,8 +155,8 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
   board; the view and panel subscribe and re-render. All changes go through
   their methods, which return `{ ok, error }` so the UI can say why an action
   was refused.
-- **Hex grid in doubled-height coordinates** (`q` column, `r` half-row,
-  `q + r` even). Rooms fill one slot and rotate in 60° clockwise steps.
+- **Square grid** (`col`, `row`). Rooms fill one slot and rotate in 90°
+  clockwise steps.
 - **Types apply after placement.** The DM can place or remove any room;
   red / blue / green restrict what changes afterwards. Set
   `MOVE_RANGE = 'adjacent'` in `src/core/roomTypes.ts` for sliding-puzzle moves.
@@ -165,7 +168,7 @@ Rooms are normally created in the app. To ship a fixed set with the code
 `rooms` list into `src/data/rooms.ts`:
 
 ```ts
-{ id: 1, name: 'Flooded Crypt', description: 'Knee-deep black water.', type: 'blue', doors: ['n', 'se'] }
+{ id: 1, name: 'Flooded Crypt', description: 'Knee-deep black water.', type: 'blue', doors: ['n', 'e'] }
 ```
 
-Exits are hex edges before rotation: `n`, `ne`, `se`, `s`, `sw`, `nw`.
+Exits are sides before rotation: `n`, `e`, `s`, `w`.

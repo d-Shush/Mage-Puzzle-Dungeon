@@ -171,7 +171,7 @@ describe('SyncManager', () => {
 });
 
 describe('GistStore', () => {
-  const file: SaveFile = { app: 'mage-puzzle-dungeon', version: 3, rooms: [], board: [], party: null, revision: 'r1' };
+  const file: SaveFile = { app: 'mage-puzzle-dungeon', version: 4, rooms: [], board: [], party: null, revision: 'r1' };
   const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
     new Response(JSON.stringify(body), { status, headers });
 

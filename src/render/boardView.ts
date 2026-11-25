@@ -1,23 +1,25 @@
 import type { Dungeon } from '../core/dungeon';
-import { hexCorners, hexToPixel, sideAngle } from '../core/hex';
-import { ROOM_TYPES } from '../core/roomTypes';
-import type { RoomInstance, SlotDefinition } from '../core/types';
+import { sideAngle } from '../core/grid';
+import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
+import type { GridCoord, RoomInstance, SlotDefinition } from '../core/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Hex circumradius in SVG units (layout spacing). */
-const SIZE = 50;
-/** Drawn hexes are slightly smaller than the layout so slots have gaps. */
-const DRAW_SIZE = SIZE * 0.9;
-const APOTHEM = (DRAW_SIZE * Math.sqrt(3)) / 2;
-const FRAME_MARGIN = SIZE * 0.9;
+/** Distance between slot centres, in SVG units. */
+const SPACING = 100;
+/** Radius of a slot's gold ring. */
+const R = 38;
+/** Radius of a room / core orb inside the ring. */
+const ORB = R - 6;
+const FRAME_PAD = { x: 70, y: 62 };
 
-/** Small mark on each room: locked, turns, or turns and moves. */
-const TYPE_GLYPHS = { red: '◆', blue: '⟳', green: '✥' } as const;
+/** Party token offset from the slot centre: upper left, clear of names, exits and the library badge. */
+const PARTY_OFFSET = { x: -R * 0.74, y: -R * 0.74 };
+const PARTY_RADIUS = 11;
 
 export interface BoardViewState {
   readonly selectedId?: string;
-  /** While moving a room: the slots it may go to. */
+  /** While moving a room or the party: the slots it may go to. */
   readonly moveTargets?: readonly string[];
   /** Slot whose room picker is open. */
   readonly pickingSlotId?: string;
@@ -32,10 +34,6 @@ export interface PartyHandlers {
   onClick(): void;
 }
 
-/** Party token offset from the slot centre: upper right, clear of the room number and doors. */
-const PARTY_OFFSET = { x: DRAW_SIZE * 0.42, y: -DRAW_SIZE * 0.55 };
-const PARTY_RADIUS = 11;
-
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number> = {},
@@ -47,28 +45,53 @@ function svg<K extends keyof SVGElementTagNameMap>(
   return el;
 }
 
-const points = (pts: { x: number; y: number }[]): string => pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+const toPixel = (c: GridCoord) => ({ x: c.col * SPACING, y: c.row * SPACING });
+
+/** Blend a #rrggbb colour towards another (t = 0 … 1). */
+function mix(hex: string, target: string, t: number): string {
+  const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  const c = [0, 1, 2].map((i) => Math.round(p(hex, i) + (p(target, i) - p(hex, i)) * t));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Split a name into at most `maxLines` lines of about `width` characters. */
+function wrap(text: string, width: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (!line) line = word;
+    else if ((line + ' ' + word).length <= width) line += ' ' + word;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length > maxLines) {
+    lines.length = maxLines;
+    lines[maxLines - 1] = `${lines[maxLines - 1]!.slice(0, width - 1)}…`;
+  }
+  return lines.map((l) => (l.length > width + 2 ? `${l.slice(0, width + 1)}…` : l));
+}
 
 interface SlotElements {
   group: SVGGElement;
-  room: SVGGElement;
-  floor: SVGPolygonElement;
+  orb: SVGCircleElement;
   doors: SVGGElement;
-  number: SVGTextElement;
   name: SVGTextElement;
-  glyph: SVGTextElement;
   title: SVGTitleElement;
 }
 
 /**
- * Top-down 2D board drawn in SVG. It is a read-only projection of the
- * Dungeon state plus a little view state (selection, move targets); clicks
- * are reported through `onSlotClick` and never change state directly.
+ * Top-down board drawn in SVG: a grid of round slots in a gold frame, with
+ * landmarks outside the grid. It is a read-only projection of the Dungeon
+ * state plus a little view state (selection, targets); input is reported
+ * through handlers and never changes state directly.
  */
 export class BoardView {
   readonly element: SVGSVGElement;
   private readonly slots = new Map<string, SlotElements>();
-  /** Accumulated door angle per room, so 300° → 0° animates forwards. */
+  /** Accumulated exit angle per room, so 270° → 0° animates forwards. */
   private readonly angles = new Map<string, { rotation: number; angle: number }>();
   private state: BoardViewState = {};
   private onSlotClick: SlotClickHandler = () => {};
@@ -81,17 +104,23 @@ export class BoardView {
     private readonly dungeon: Dungeon,
   ) {
     const slots = dungeon.board.all();
-    const centre = this.boardCentre(slots);
-    const frameRadius = this.frameRadius(slots, centre);
-    const half = frameRadius + 12;
+    const xs = slots.map((s) => toPixel(s.coord).x);
+    const ys = slots.map((s) => toPixel(s.coord).y);
+    const frame = {
+      x: Math.min(...xs) - FRAME_PAD.x,
+      y: Math.min(...ys) - FRAME_PAD.y,
+      w: Math.max(...xs) - Math.min(...xs) + FRAME_PAD.x * 2,
+      h: Math.max(...ys) - Math.min(...ys) + FRAME_PAD.y * 2,
+    };
+    const m = 10;
 
     this.element = svg('svg', {
       class: 'board',
-      viewBox: `${centre.x - half} ${centre.y - half} ${half * 2} ${half * 2}`,
+      viewBox: `${frame.x - m} ${frame.y - m} ${frame.w + m * 2} ${frame.h + m * 2}`,
       role: 'group',
       'aria-label': 'Dungeon board',
     });
-    this.element.append(this.buildDefs(), this.buildFrame(centre, frameRadius));
+    this.element.append(this.buildDefs(), this.buildFrame(frame));
 
     const slotLayer = svg('g', { class: 'slots' });
     for (const slot of slots) {
@@ -128,7 +157,7 @@ export class BoardView {
 
   private update(): void {
     const targets = new Set(this.state.moveTargets ?? []);
-    const moving = targets.size > 0 || this.state.moveTargets !== undefined;
+    const moving = this.state.moveTargets !== undefined;
     const live = new Set<string>();
 
     for (const slot of this.dungeon.board.all()) {
@@ -148,7 +177,7 @@ export class BoardView {
         live.add(room.instanceId);
         this.renderRoom(els, room, slot);
       } else if (slot.kind === 'slot') {
-        els.title.textContent = `${slot.id} — empty, click to place a room`;
+        els.title.textContent = `${slot.id}: empty, click to place a room`;
         els.group.setAttribute('aria-label', `Slot ${slot.id}, empty`);
       }
     }
@@ -156,14 +185,51 @@ export class BoardView {
     this.updateParty();
   }
 
+  private renderRoom(els: SlotElements, room: RoomInstance, slot: SlotDefinition): void {
+    const def = this.dungeon.definitionOf(room);
+    const rules = ROOM_TYPES[def.type];
+
+    els.orb.setAttribute('fill', `url(#orb-${def.type})`);
+    const lines = wrap(def.name, 9, 2);
+    els.name.replaceChildren(
+      ...lines.map((line, i) => svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)),
+    );
+    els.title.textContent = `${slot.id}: #${def.id} ${def.name} (${rules.label}, ${rules.summary.toLowerCase()})`;
+    els.group.setAttribute('aria-label', `Slot ${slot.id}, room ${def.id} ${def.name}, ${rules.label}`);
+
+    // Rebuild exit markers only when the room or its exits changed.
+    const doorKey = `${room.instanceId}:${def.doors.join(',')}`;
+    if (els.doors.dataset.room !== doorKey) {
+      const sameRoom = els.doors.dataset.room?.startsWith(`${room.instanceId}:`);
+      els.doors.dataset.room = doorKey;
+      els.doors.replaceChildren(...def.doors.map((side) => this.buildDoor(sideAngle(side))));
+      els.doors.style.transition = 'none';
+      if (!sameRoom) this.angles.delete(room.instanceId);
+    } else {
+      els.doors.style.transition = '';
+    }
+
+    const prev = this.angles.get(room.instanceId);
+    let angle = room.rotation * 90;
+    if (prev) {
+      const delta = (((room.rotation - prev.rotation) % 4) + 4) % 4;
+      angle = prev.angle + (delta > 2 ? delta - 4 : delta) * 90;
+    }
+    this.angles.set(room.instanceId, { rotation: room.rotation, angle });
+    els.doors.style.transform = `rotate(${angle}deg)`;
+  }
+
+  // ---------- party marker ----------
+
   private updateParty(): void {
     const slot = this.dungeon.party ? this.dungeon.board.get(this.dungeon.party) : undefined;
     this.partyToken.style.display = slot ? '' : 'none';
     if (!slot || this.dragging) return;
-    const c = hexToPixel(slot.coord, SIZE);
+    const c = toPixel(slot.coord);
     this.placeToken(c.x + PARTY_OFFSET.x, c.y + PARTY_OFFSET.y);
-    this.partyToken.setAttribute('aria-label', `Party marker in ${slot.id}. Drag it, or press Enter to move it.`);
-    this.partyToken.querySelector('title')!.textContent = `The party is in ${slot.id} — drag to move`;
+    const where = this.dungeon.board.describe(slot.id);
+    this.partyToken.setAttribute('aria-label', `Party marker at ${where}. Drag it, or press Enter to move it.`);
+    this.partyToken.querySelector('title')!.textContent = `The party is at ${where}. Drag to move.`;
   }
 
   private placeToken(x: number, y: number): void {
@@ -178,15 +244,15 @@ export class BoardView {
     return { x: p.x, y: p.y };
   }
 
-  /** Slot whose centre is nearest to a point, if the point is on that slot. */
+  /** Slot under a point, if any. */
   private slotAt(x: number, y: number): string | undefined {
     let best: { id: string; d: number } | undefined;
     for (const slot of this.dungeon.board.all()) {
-      const c = hexToPixel(slot.coord, SIZE);
+      const c = toPixel(slot.coord);
       const d = Math.hypot(c.x - x, c.y - y);
       if (!best || d < best.d) best = { id: slot.id, d };
     }
-    return best && best.d <= SIZE * 0.9 ? best.id : undefined;
+    return best && best.d <= SPACING * 0.55 ? best.id : undefined;
   }
 
   private buildPartyToken(): SVGGElement {
@@ -200,12 +266,11 @@ export class BoardView {
       svg('path', { class: 'party-figure', d: 'M-5,5.5 Q-5,-0.2 0,-0.2 Q5,-0.2 5,5.5 Z' }),
     );
 
-    let start: { x: number; y: number; px: number; py: number } | undefined;
+    let start: { x: number; y: number } | undefined;
     token.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       e.preventDefault();
-      const p = this.toSvgPoint(e);
-      start = { x: e.clientX, y: e.clientY, px: p.x, py: p.y };
+      start = { x: e.clientX, y: e.clientY };
       token.setPointerCapture(e.pointerId);
     });
     token.addEventListener('pointermove', (e) => {
@@ -246,77 +311,33 @@ export class BoardView {
     return token;
   }
 
-  private renderRoom(els: SlotElements, room: RoomInstance, slot: SlotDefinition): void {
-    const def = this.dungeon.definitionOf(room);
-    const rules = ROOM_TYPES[def.type];
-
-    els.floor.setAttribute('fill', rules.color);
-    els.number.textContent = String(def.id);
-    els.name.textContent = def.name.length > 14 ? `${def.name.slice(0, 13)}…` : def.name;
-    els.glyph.textContent = TYPE_GLYPHS[def.type];
-    els.title.textContent = `${slot.id} — #${def.id} ${def.name} (${rules.label}: ${rules.summary.toLowerCase()})`;
-    els.group.setAttribute('aria-label', `Slot ${slot.id}, room ${def.id} ${def.name}, ${rules.label}`);
-
-    // Rebuild door markers only when the room or its exits changed.
-    const doorKey = `${room.instanceId}:${def.doors.join(',')}`;
-    if (els.doors.dataset.room !== doorKey) {
-      const sameRoom = els.doors.dataset.room?.startsWith(`${room.instanceId}:`);
-      els.doors.dataset.room = doorKey;
-      els.doors.replaceChildren(...def.doors.map((side) => this.buildDoor(sideAngle(side))));
-      els.doors.style.transition = 'none';
-      if (!sameRoom) this.angles.delete(room.instanceId);
-    } else {
-      els.doors.style.transition = '';
-    }
-
-    const prev = this.angles.get(room.instanceId);
-    let angle = room.rotation * 60;
-    if (prev) {
-      const delta = (((room.rotation - prev.rotation) % 6) + 6) % 6;
-      angle = prev.angle + (delta > 3 ? delta - 6 : delta) * 60;
-    }
-    this.angles.set(room.instanceId, { rotation: room.rotation, angle });
-    els.doors.style.transform = `rotate(${angle}deg)`;
-  }
-
   // ---------- construction ----------
-
-  private boardCentre(slots: SlotDefinition[]): { x: number; y: number } {
-    const xs = slots.map((s) => hexToPixel(s.coord, SIZE).x);
-    const ys = slots.map((s) => hexToPixel(s.coord, SIZE).y);
-    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
-  }
-
-  /** Circumradius of the smallest pointy-top hexagon frame enclosing every slot. */
-  private frameRadius(slots: SlotDefinition[], centre: { x: number; y: number }): number {
-    const normals = Array.from({ length: 6 }, (_, k) => (Math.PI / 3) * k);
-    let maxDist = 0;
-    for (const slot of slots) {
-      const p = hexToPixel(slot.coord, SIZE);
-      for (const corner of hexCorners(SIZE)) {
-        const x = p.x + corner.x - centre.x;
-        const y = p.y + corner.y - centre.y;
-        for (const a of normals) maxDist = Math.max(maxDist, x * Math.cos(a) + y * Math.sin(a));
-      }
-    }
-    return (maxDist + FRAME_MARGIN) / (Math.sqrt(3) / 2);
-  }
 
   private buildDefs(): SVGDefsElement {
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const stops = (list: [number, string, number?][]) =>
       list.map(([o, c, a]) => svg('stop', { offset: o, 'stop-color': c, 'stop-opacity': a ?? 1 }));
+    const orb = (id: string, base: string) =>
+      svg(
+        'radialGradient',
+        { id, cx: 0.38, cy: 0.32, r: 0.78 },
+        ...stops([
+          [0, mix(base, '#ffffff', 0.55)],
+          [0.45, base],
+          [1, mix(base, '#000000', 0.7)],
+        ]),
+      );
 
     const prism = svg(
       'linearGradient',
       { id: 'prism', x1: 0, y1: 0, x2: 1, y2: 1 },
       ...stops([
-        [0, '#ff9ad5'],
-        [0.2, '#ffd59a'],
-        [0.4, '#c9ff9a'],
-        [0.6, '#9ae8ff'],
-        [0.8, '#b59aff'],
-        [1, '#ff9ad5'],
+        [0, '#ff5fa2'],
+        [0.2, '#ffb347'],
+        [0.4, '#c6f25a'],
+        [0.6, '#4fd8ff'],
+        [0.8, '#8b6bff'],
+        [1, '#ff5fa2'],
       ]),
     );
     if (!reducedMotion) {
@@ -336,11 +357,12 @@ export class BoardView {
       'defs',
       {},
       prism,
-      svg('radialGradient', { id: 'pearl-shine', cx: 0.38, cy: 0.32, r: 0.7 }, ...stops([[0, '#ffffff', 0.95], [0.35, '#ffffff', 0.35], [1, '#ffffff', 0]])),
-      svg('linearGradient', { id: 'gold', x1: 0, y1: 0, x2: 0, y2: 1 }, ...stops([[0, '#ffe7a3'], [0.5, '#d9a441'], [1, '#a8741f']])),
-      svg('radialGradient', { id: 'slot-fill', cx: 0.5, cy: 0.4, r: 0.75 }, ...stops([[0, '#1c1624'], [1, '#09070d']])),
-      svg('linearGradient', { id: 'room-sheen', x1: 0, y1: 0, x2: 0, y2: 1 }, ...stops([[0, '#ffffff', 0.22], [0.5, '#ffffff', 0], [1, '#000000', 0.35]])),
-      svg('radialGradient', { id: 'frame-fill', cx: 0.5, cy: 0.5, r: 0.7 }, ...stops([[0, '#1d1530'], [1, '#0d0a14']])),
+      ...ROOM_TYPE_ORDER.map((t) => orb(`orb-${t}`, ROOM_TYPES[t].color)),
+      svg('radialGradient', { id: 'orb-core', cx: 0.36, cy: 0.3, r: 0.8 }, ...stops([[0, '#6b6178'], [0.35, '#1d1824'], [1, '#040306']])),
+      svg('radialGradient', { id: 'pearl-shine', cx: 0.34, cy: 0.26, r: 0.55 }, ...stops([[0, '#ffffff', 0.9], [0.3, '#ffffff', 0.25], [1, '#ffffff', 0]])),
+      svg('radialGradient', { id: 'well', cx: 0.5, cy: 0.42, r: 0.65 }, ...stops([[0, '#1b1722'], [1, '#08070b']])),
+      svg('linearGradient', { id: 'gold', x1: 0, y1: 0, x2: 0, y2: 1 }, ...stops([[0, '#ffe7a3'], [0.5, '#d9a441'], [1, '#8f5f17']])),
+      svg('linearGradient', { id: 'frame-fill', x1: 0, y1: 0, x2: 1, y2: 1 }, ...stops([[0, '#1a1722'], [0.5, '#121017'], [1, '#18151f']])),
       svg(
         'filter',
         { id: 'glow', x: '-50%', y: '-50%', width: '200%', height: '200%' },
@@ -350,68 +372,83 @@ export class BoardView {
     );
   }
 
-  private buildFrame(centre: { x: number; y: number }, radius: number): SVGGElement {
-    const hex = (r: number) =>
-      Array.from({ length: 6 }, (_, i) => {
-        const a = (Math.PI / 3) * i - Math.PI / 2; // pointy top
-        return { x: centre.x + r * Math.cos(a), y: centre.y + r * Math.sin(a) };
-      });
-    const star = (x: number, y: number, s: number) =>
-      svg('path', {
-        class: 'frame-star',
-        d: `M${x},${y - s} Q${x},${y} ${x + s * 0.35},${y} Q${x},${y} ${x},${y + s} Q${x},${y} ${x - s * 0.35},${y} Q${x},${y} ${x},${y - s}Z`,
-      });
-
-    const outer = hex(radius);
+  private buildFrame(f: { x: number; y: number; w: number; h: number }): SVGGElement {
+    // Faint diagonal light streaks across the slate, as in the reference art.
+    const streaks = [
+      [0.05, 0.25, 0.95, 0.05],
+      [0.0, 0.7, 1.0, 0.35],
+      [0.25, 1.0, 0.75, 0.0],
+    ].map(([x1, y1, x2, y2]) =>
+      svg('line', { class: 'frame-streak', x1: f.x + f.w * x1!, y1: f.y + f.h * y1!, x2: f.x + f.w * x2!, y2: f.y + f.h * y2! }),
+    );
     return svg(
       'g',
       { class: 'frame', 'aria-hidden': 'true' },
-      svg('polygon', { class: 'frame-fill', points: points(outer) }),
-      svg('circle', { class: 'frame-orbit', cx: centre.x, cy: centre.y, r: radius * 0.78 }),
-      svg('circle', { class: 'frame-orbit', cx: centre.x, cy: centre.y, r: radius * 0.66 }),
-      svg('polygon', { class: 'frame-outer', points: points(outer) }),
-      svg('polygon', { class: 'frame-inner', points: points(hex(radius - 9)) }),
-      ...hex(radius - 26).map((p) => star(p.x, p.y, 11)),
+      svg('rect', { class: 'frame-fill', x: f.x, y: f.y, width: f.w, height: f.h, rx: 18 }),
+      ...streaks,
+      svg('rect', { class: 'frame-outer', x: f.x, y: f.y, width: f.w, height: f.h, rx: 18 }),
+      svg('rect', { class: 'frame-inner', x: f.x + 14, y: f.y + 14, width: f.w - 28, height: f.h - 28, rx: 8 }),
     );
   }
 
   private buildSlot(slot: SlotDefinition): SlotElements {
-    const { x, y } = hexToPixel(slot.coord, SIZE);
-    const corners = points(hexCorners(DRAW_SIZE));
+    const { x, y } = toPixel(slot.coord);
     const group = svg('g', {
       class: `slot slot-${slot.kind}`,
-      transform: `translate(${x.toFixed(2)},${y.toFixed(2)})`,
+      transform: `translate(${x},${y})`,
       'data-slot': slot.id,
       tabindex: 0,
       role: 'button',
     });
     const title = svg('title');
-    group.append(title, svg('polygon', { class: 'slot-base', points: corners }));
+    group.append(title, svg('circle', { class: 'party-ring', r: R + 5 }), svg('circle', { class: 'slot-well', r: R }));
 
-    const floor = svg('polygon', { class: 'room-floor', points: corners });
+    const orb = svg('circle', { class: 'room-orb', r: ORB });
     const doors = svg('g', { class: 'room-doors' });
-    const number = svg('text', { class: 'room-number', y: -2 });
-    const name = svg('text', { class: 'room-name', y: 14 });
-    const glyph = svg('text', { class: 'room-glyph', y: -22 });
-    const room = svg('g', { class: 'slot-room' }, floor, svg('polygon', { class: 'room-sheen', points: corners }), doors, glyph, number, name);
-    group.append(room);
+    const name = svg('text', { class: 'room-name' });
+    group.append(svg('g', { class: 'slot-room' }, orb, svg('circle', { class: 'orb-shine', r: ORB }), doors, name));
 
     if (slot.kind === 'core') {
-      title.textContent = `${slot.id} — prismatic core`;
-      group.setAttribute('aria-label', `Slot ${slot.id}, prismatic core`);
+      title.textContent = `${slot.id}: the core`;
+      group.setAttribute('aria-label', `Slot ${slot.id}, the core`);
       group.append(
-        svg('polygon', { class: 'core-fill', points: points(hexCorners(DRAW_SIZE * 0.97)) }),
-        svg('circle', { class: 'core-orb', r: DRAW_SIZE * 0.5 }),
-        svg('circle', { class: 'core-shine', r: DRAW_SIZE * 0.5 }),
+        svg('circle', { class: 'core-orb', r: ORB }),
+        svg('circle', { class: 'orb-shine', r: ORB }),
       );
+    }
+    if (slot.kind === 'landmark') {
+      const label = slot.name ?? slot.id;
+      title.textContent = label;
+      group.setAttribute('aria-label', label);
+      group.append(
+        svg('circle', { class: 'landmark-orb', r: ORB }),
+        svg('circle', { class: 'orb-shine', r: ORB }),
+      );
+      const words = label.toUpperCase().split(/\s+/);
+      const text = svg('text', { class: 'landmark-label', x: R + 18, y: 0 });
+      words.forEach((w, i) =>
+        text.append(svg('tspan', { x: R + 18, dy: i === 0 ? `${-(words.length - 1) * 0.6}em` : '1.2em' }, w)),
+      );
+      group.append(text);
     }
 
     group.append(
-      svg('polygon', { class: 'party-ring', points: points(hexCorners(DRAW_SIZE + 3)) }),
-      svg('polygon', { class: 'slot-rim', points: corners }),
-      svg('polygon', { class: 'slot-rim-inner', points: points(hexCorners(DRAW_SIZE - 5)) }),
+      svg('circle', { class: 'slot-rim', r: R }),
+      svg('circle', { class: 'slot-rim-inner', r: R - 4 }),
     );
-    if (slot.kind === 'slot') group.append(svg('text', { class: 'slot-label', y: 0 }, slot.id));
+    if (slot.kind === 'slot') group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
+    if (slot.badge === 'lock') {
+      const bx = R * 0.72;
+      const by = -R * 0.72;
+      group.append(
+        svg(
+          'g',
+          { class: 'landmark-badge', transform: `translate(${bx},${by})` },
+          svg('circle', { r: 11 }),
+          svg('path', { class: 'keyhole', d: 'M0,-5.5 a3,3 0 1 1 0.01,0 Z M-1.8,-1.5 L1.8,-1.5 L2.6,5.5 L-2.6,5.5 Z' }),
+        ),
+      );
+    }
 
     group.addEventListener('click', () => this.onSlotClick(slot.id, group));
     group.addEventListener('keydown', (e) => {
@@ -421,16 +458,17 @@ export class BoardView {
       }
     });
 
-    return { group, room, floor, doors, number, name, glyph, title };
+    return { group, orb, doors, name, title };
   }
 
+  /** A glowing gold bar on one side of a room orb. */
   private buildDoor(angle: number): SVGGElement {
-    const w = DRAW_SIZE * 0.42;
-    const h = 7;
+    const w = R * 0.62;
+    const h = 6;
     return svg(
       'g',
       { transform: `rotate(${angle + 90})` },
-      svg('rect', { class: 'door', x: -w / 2, y: -APOTHEM + 2, width: w, height: h, rx: 2 }),
+      svg('rect', { class: 'door', x: -w / 2, y: -R + 1, width: w, height: h, rx: 3 }),
     );
   }
 }

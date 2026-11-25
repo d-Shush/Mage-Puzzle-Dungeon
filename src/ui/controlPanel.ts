@@ -94,7 +94,8 @@ export class ControlPanel {
     const slot = slotId ? this.dungeon.board.get(slotId) : undefined;
     let where = 'Not on the map';
     if (slotId && room) where = `In ${slotId}, ${this.dungeon.definitionOf(room).name}`;
-    else if (slot?.kind === 'core') where = `At the prismatic core (${slotId})`;
+    else if (slot?.kind === 'core') where = `At the core (${slotId})`;
+    else if (slot?.kind === 'landmark') where = `At ${slot.name ?? slotId}`;
     else if (slotId) where = `In ${slotId} (no room there yet)`;
 
     const move = button(
@@ -134,7 +135,7 @@ export class ControlPanel {
 
     this.selection.replaceChildren(
       h('div', { className: 'selection-head' }, h('h2', { textContent: `#${def.id} ${def.name}` }), this.typeBadge(def)),
-      h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 60}°` }),
+      h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 90}°` }),
       ...(def.description ? [h('p', { className: 'player-text', textContent: def.description })] : []),
       h('p', { className: 'muted', textContent: `Exits as built: ${def.doors.length ? def.doors.map(exitName).join(', ') : 'none'}` }),
       h('div', { className: 'row' }, ccw, cw, move),

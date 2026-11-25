@@ -51,6 +51,7 @@ export class Controller {
     if (saved !== undefined) {
       const res = applySaveFile(dungeon, saved);
       if (!res.ok) this.panel.setStatus(`Saved data could not be loaded: ${res.error}`, true);
+      else if (res.value.notice) this.panel.setStatus(res.value.notice);
     }
 
     view.setSlotClickHandler((slotId, anchor) => this.onSlotClick(slotId, anchor));
@@ -142,7 +143,10 @@ export class Controller {
   private moveParty(slotId: string): void {
     this.movingParty = false;
     const moved = this.dungeon.party !== undefined;
-    this.report(this.dungeon.setParty(slotId), () => moved ? `Party moved to ${slotId}` : `Party placed in ${slotId}`);
+    this.report(this.dungeon.setParty(slotId), () => {
+      const where = this.dungeon.board.describe(slotId);
+      return moved ? `Party moved to ${where}` : `Party placed at ${where}`;
+    });
     this.sync();
   }
 
@@ -247,7 +251,7 @@ export class Controller {
       return this.panel.setStatus(`${file.name} is not a valid save file`, true);
     }
     this.select(undefined);
-    this.report(applySaveFile(this.dungeon, data), (f) => `Imported ${f.rooms.length} rooms from ${file.name}`);
+    this.report(applySaveFile(this.dungeon, data), (f) => `Imported ${f.file.rooms.length} rooms from ${file.name}.${f.notice ? ` ${f.notice}` : ''}`);
   }
 
   /** Two-step clear: the first press arms it, a second press within 4 s clears. */

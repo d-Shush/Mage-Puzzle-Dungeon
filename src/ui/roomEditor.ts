@@ -62,7 +62,7 @@ export class RoomEditor {
       const radio = h('input', { type: 'radio', name: 'room-type', id: `room-type-${t}`, value: t, checked: t === type });
       radio.addEventListener('change', () => {
         type = t;
-        this.exits.setColor(rules.color);
+        this.exits.setType(t);
       });
       const swatch = h('span', { className: 'type-swatch' });
       swatch.style.background = rules.color;
@@ -76,7 +76,7 @@ export class RoomEditor {
     });
 
     this.exits.value = room?.doors ?? [];
-    this.exits.setColor(ROOM_TYPES[type].color);
+    this.exits.setType(type);
     const exitCount = h('span', { className: 'muted' });
     const updateCount = () => {
       const n = this.exits.value.length;
@@ -134,7 +134,7 @@ export class RoomEditor {
         'fieldset',
         { className: 'field' },
         h('legend', {}, 'Exits ', exitCount),
-        h('p', { className: 'hint', textContent: 'Click an edge of the hexagon or tick a box. Exits turn with the room.' }),
+        h('p', { className: 'hint', textContent: 'Click a side of the room or tick a box. Exits turn with the room.' }),
         this.exits.element,
       ),
       error,

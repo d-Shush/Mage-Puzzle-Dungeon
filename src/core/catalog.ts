@@ -1,4 +1,4 @@
-import { SIDES } from './hex';
+import { SIDES } from './grid';
 import { ROOM_TYPES } from './roomTypes';
 import { fail, ok, type Result, type RoomDefinition, type RoomInput } from './types';
 

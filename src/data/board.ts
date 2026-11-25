@@ -1,37 +1,31 @@
 import type { SlotDefinition } from '../core/types';
 
 /**
- * Board layout: seven columns of flat-top hexes holding 4-5-6-7-6-5-4 slots
- * (37 in total), a regular hexagon three rings deep around the core, with a
- * point at the top and bottom. Every column is centred on the core, so the
- * board is symmetric in every direction.
+ * Board layout, matching the reference picture: a 5 × 7 grid of slots,
+ * columns A–E from the left and rows 1–7 from the top, so "A1" is the top
+ * left slot and "E7" the bottom right one.
+ *
+ * C4, the middle of the grid, holds the dark core orb and never takes a room.
+ * Two landmarks sit outside the grid: Shaper's Library above C1 and the
+ * Unknown below C7. They never take a room, but the party can stand there.
  */
-const COLUMN_SIZES = [4, 5, 6, 7, 6, 5, 4] as const;
-
-/** The prismatic core, in the exact centre of the board. */
-const CORE = { q: 0, r: 0 };
-
-/**
- * Labels: a letter per half-row from the top (A = top point … M = bottom
- * point) and the column number 1–7 from the left. So "A4"
- * is the top slot, "M4" the bottom one, "D1" the top of the left edge, and
- * the core is "G4".
- */
-function label(q: number, r: number): string {
-  const row = String.fromCharCode('A'.charCodeAt(0) + r + 6);
-  return `${row}${q + 4}`;
-}
+const COLUMNS = 'ABCDE';
+const ROWS = 7;
+const CORE = 'C4';
 
 function buildSlots(): SlotDefinition[] {
   const slots: SlotDefinition[] = [];
-  COLUMN_SIZES.forEach((size, col) => {
-    const q = col - (COLUMN_SIZES.length - 1) / 2;
-    for (let i = 0; i < size; i++) {
-      const r = 2 * i - (size - 1);
-      const isCore = q === CORE.q && r === CORE.r;
-      slots.push({ id: label(q, r), coord: { q, r }, kind: isCore ? 'core' : 'slot' });
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLUMNS.length; col++) {
+      const id = `${COLUMNS[col]}${row + 1}`;
+      slots.push({ id, coord: { col, row }, kind: id === CORE ? 'core' : 'slot' });
     }
-  });
+  }
+  const middle = Math.floor(COLUMNS.length / 2);
+  slots.push(
+    { id: 'LIBRARY', name: "Shaper's Library", coord: { col: middle, row: -1 }, kind: 'landmark', badge: 'lock' },
+    { id: 'UNKNOWN', name: 'Unknown', coord: { col: middle, row: ROWS }, kind: 'landmark' },
+  );
   return slots;
 }
 

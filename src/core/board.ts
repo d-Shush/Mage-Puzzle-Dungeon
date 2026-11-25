@@ -1,4 +1,4 @@
-import { SIDES, coordKey, hexDistance, neighbour } from './hex';
+import { SIDES, coordKey, gridDistance, neighbour } from './grid';
 import type { SlotDefinition } from './types';
 
 /** The fixed board layout: validated lookup of slots by id or position. */
@@ -8,11 +8,12 @@ export class Board {
 
   constructor(slots: readonly SlotDefinition[]) {
     for (const slot of slots) {
-      if ((slot.coord.q + slot.coord.r) % 2 !== 0) {
-        throw new Error(`Slot ${slot.id}: q + r must be even`);
+      if (!Number.isInteger(slot.coord.col) || !Number.isInteger(slot.coord.row)) {
+        throw new Error(`Slot ${slot.id}: position must be whole numbers`);
       }
       if (this.byId.has(slot.id)) throw new Error(`Duplicate slot id ${slot.id}`);
       if (this.byCoord.has(coordKey(slot.coord))) throw new Error(`Slot ${slot.id}: position already used`);
+      if (slot.kind === 'landmark' && !slot.name) throw new Error(`Landmark ${slot.id} needs a name`);
       this.byId.set(slot.id, slot);
       this.byCoord.set(coordKey(slot.coord), slot);
     }
@@ -26,7 +27,13 @@ export class Board {
     return this.byId.get(id);
   }
 
-  /** Slots sharing an edge with the given slot. */
+  /** How to name a slot in messages: landmarks by name, grid slots by label. */
+  describe(id: string): string {
+    const slot = this.byId.get(id);
+    return slot?.name ?? id;
+  }
+
+  /** Slots sharing a side with the given slot. */
   neighbours(id: string): SlotDefinition[] {
     const slot = this.byId.get(id);
     if (!slot) return [];
@@ -39,6 +46,6 @@ export class Board {
     const sa = this.byId.get(a);
     const sb = this.byId.get(b);
     if (!sa || !sb) return Infinity;
-    return hexDistance(sa.coord, sb.coord);
+    return gridDistance(sa.coord, sb.coord);
   }
 }

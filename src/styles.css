@@ -61,9 +61,14 @@ body {
     grid-template-rows: auto auto;
     height: auto;
   }
+  /* The board is taller than wide: give it the full width and let it set its own height. */
   #board {
-    height: min(100vw, 75vh);
+    height: auto;
     padding: 8px;
+  }
+  #board .board {
+    height: auto;
+    max-height: none;
   }
   #panel {
     border-left: none;
@@ -82,30 +87,28 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.frame {
+  pointer-events: none;
+}
 .frame-fill {
   fill: url(#frame-fill);
+}
+.frame-streak {
+  stroke: #ffffff;
+  stroke-opacity: 0.035;
+  stroke-width: 26;
 }
 .frame-outer {
   fill: none;
   stroke: url(#gold);
-  stroke-width: 5;
+  stroke-width: 6;
   filter: url(#glow);
 }
 .frame-inner {
   fill: none;
   stroke: var(--gold);
-  stroke-width: 1.5;
-  opacity: 0.7;
-}
-.frame-orbit {
-  fill: none;
-  stroke: var(--gold);
-  stroke-width: 0.8;
-  opacity: 0.25;
-}
-.frame-star {
-  fill: var(--gold-bright);
-  filter: url(#glow);
+  stroke-width: 1.2;
+  opacity: 0.45;
 }
 
 .slot {
@@ -113,29 +116,28 @@ body {
   outline: none;
   transition: opacity 0.2s;
 }
-.slot-base {
-  fill: url(#slot-fill);
+.slot-well {
+  fill: url(#well);
 }
 .slot-rim {
   fill: none;
   stroke: url(#gold);
-  stroke-width: 4;
-  stroke-linejoin: round;
+  stroke-width: 3.5;
   transition: stroke-width 0.15s;
 }
 .slot-rim-inner {
   fill: none;
   stroke: #000;
-  stroke-opacity: 0.6;
+  stroke-opacity: 0.55;
   stroke-width: 2;
 }
 .slot-label {
   font-family: var(--display);
-  font-size: 13px;
-  fill: var(--gold-bright);
+  font-size: 11px;
+  fill: var(--gold);
   text-anchor: middle;
   dominant-baseline: central;
-  opacity: 0.85;
+  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -149,8 +151,9 @@ body {
 .slot.is-filled .slot-label {
   display: none;
 }
-.room-sheen {
-  fill: url(#room-sheen);
+.orb-shine {
+  fill: url(#pearl-shine);
+  pointer-events: none;
 }
 .room-doors {
   transition: transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
@@ -159,82 +162,88 @@ body {
   fill: var(--gold-bright);
   filter: url(#glow);
 }
-.board .room-number {
+.board .room-name {
   font-family: var(--display);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 10px;
   fill: #fff;
   text-anchor: middle;
   dominant-baseline: central;
   paint-order: stroke;
-  stroke: #000a;
-  stroke-width: 3px;
-}
-.board .room-name {
-  font-size: 8.5px;
-  fill: #f4ecda;
-  text-anchor: middle;
-  dominant-baseline: central;
-  paint-order: stroke;
-  stroke: #000a;
+  stroke: #000b;
   stroke-width: 2.5px;
-}
-.room-glyph {
-  font-size: 11px;
-  fill: #fff;
-  opacity: 0.8;
-  text-anchor: middle;
-  dominant-baseline: central;
 }
 
 .slot-core {
   cursor: default;
 }
-.core-fill {
-  fill: url(#prism);
-  opacity: 0.9;
-}
 .core-orb {
+  fill: url(#orb-core);
+}
+.slot-core .slot-rim {
+  stroke: #6b5a85;
+}
+
+.slot-landmark {
+  cursor: default;
+}
+.landmark-orb {
   fill: url(#prism);
-  stroke: #ffffffaa;
-  stroke-width: 1.5;
+}
+.slot-landmark .slot-rim {
   filter: url(#glow);
 }
-.core-shine {
-  fill: url(#pearl-shine);
+.landmark-label {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  fill: var(--gold);
+  opacity: 0.75;
+  dominant-baseline: central;
+}
+.landmark-badge circle {
+  fill: url(#gold);
+  stroke: #5a3d0e;
+  stroke-width: 1;
+}
+.landmark-badge .keyhole {
+  fill: #3a260a;
 }
 
 @media (hover: hover) {
   .slot.is-empty:hover .slot-rim,
   .slot.is-filled:hover .slot-rim {
-    stroke-width: 6;
+    stroke-width: 5;
   }
-  .slot.is-empty:hover .slot-base {
-    fill: #2a2036;
+  .slot.is-empty:hover .slot-well {
+    fill: #241d2e;
   }
 }
 .slot:focus-visible .slot-rim,
 .slot.is-picking .slot-rim {
   stroke: var(--gold-bright);
-  stroke-width: 6;
+  stroke-width: 5;
 }
-.slot.is-picking .slot-base {
-  fill: #2a2036;
+.slot.is-picking .slot-well {
+  fill: #241d2e;
 }
 .slot.is-selected .slot-rim {
   stroke: #fff;
-  stroke-width: 6;
+  stroke-width: 5;
   filter: url(#glow);
 }
-.slot.is-target .slot-base {
-  fill: #23402f;
+.slot.is-target .slot-well {
+  fill: #1e3a2a;
 }
 .slot.is-target .slot-rim {
   stroke: #8cf0a8;
-  stroke-width: 5;
+  stroke-width: 4.5;
+}
+.slot.is-target {
+  cursor: pointer;
 }
 .slot.is-dimmed {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 /* ---------- party marker ---------- */
@@ -814,33 +823,35 @@ textarea:focus-visible {
   align-items: center;
   flex-wrap: wrap;
 }
-.exit-hex {
-  width: 170px;
+.exit-orb {
+  width: 160px;
   flex: none;
   user-select: none;
 }
-.exit-floor {
-  stroke: none;
-  transition: fill 0.2s;
+.exit-well {
+  fill: #0a080d;
+  stroke: var(--gold);
+  stroke-width: 2;
 }
 .exit-hit {
-  stroke: transparent;
-  stroke-width: 22;
+  fill: transparent;
   cursor: pointer;
 }
-.exit-line {
-  stroke: #000a;
-  stroke-width: 5;
-  stroke-linecap: round;
+.exit-bar {
+  fill: #000;
+  fill-opacity: 0.45;
+  stroke: #d9a44155;
+  stroke-width: 1;
   pointer-events: none;
-  transition: stroke 0.15s;
+  transition: fill 0.15s;
 }
-.exit-edge:hover .exit-line {
-  stroke: #d9a44199;
+.exit-edge:hover .exit-bar {
+  fill: #d9a44199;
 }
-.exit-edge.is-on .exit-line {
-  stroke: var(--gold-bright);
-  stroke-width: 7;
+.exit-edge.is-on .exit-bar {
+  fill: var(--gold-bright);
+  fill-opacity: 1;
+  stroke: none;
 }
 .exit-label {
   font-size: 13px;

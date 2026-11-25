@@ -1,6 +1,6 @@
 import type { Board } from './board';
 import type { RoomCatalog } from './catalog';
-import { addRotation } from './hex';
+import { addRotation } from './grid';
 import { MOVE_RANGE, ROOM_TYPES } from './roomTypes';
 import { fail, ok, type Result, type RoomDefinition, type RoomInstance } from './types';
 
@@ -71,7 +71,8 @@ export class Dungeon {
   checkSlotFree(slotId: string): Result<void> {
     const slot = this.board.get(slotId);
     if (!slot) return fail(`No slot ${slotId}`);
-    if (slot.kind === 'core') return fail('The prismatic core cannot hold a room');
+    if (slot.kind === 'core') return fail('The core cannot hold a room');
+    if (slot.kind === 'landmark') return fail(`${slot.name ?? slot.id} cannot hold a room`);
     if (this.roomAt(slotId)) return fail(`Slot ${slotId} is already occupied`);
     return ok(undefined);
   }
@@ -93,7 +94,7 @@ export class Dungeon {
 
   /**
    * Put the party marker on a slot, or take it off the board (undefined).
-   * Any slot works, including empty ones and the core.
+   * Any slot works, including empty ones, the core and landmarks.
    */
   setParty(slotId: string | undefined): Result<string | undefined> {
     if (slotId !== undefined && !this.board.get(slotId)) return fail(`No slot ${slotId}`);
@@ -122,7 +123,7 @@ export class Dungeon {
     return ok(room);
   }
 
-  /** Rotate by 60° clockwise (direction 1) or counter-clockwise (-1). */
+  /** Rotate by 90° clockwise (direction 1) or counter-clockwise (-1). */
   rotate(instanceId: string, direction: 1 | -1 = 1): Result<RoomInstance> {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
@@ -167,7 +168,7 @@ export class Dungeon {
       if (typeof r?.instanceId !== 'string' || staged.rooms.has(r.instanceId)) return fail('Duplicate or missing room id on the board');
       if (!this.catalog.get(r.definitionId)) return fail(`Board uses unknown room ${String(r.definitionId)}`);
       if (staged.placementOf(r.definitionId)) return fail(`Room ${r.definitionId} is on the board twice`);
-      if (!Number.isInteger(r.rotation) || r.rotation < 0 || r.rotation > 5) return fail('Invalid rotation on the board');
+      if (!Number.isInteger(r.rotation) || r.rotation < 0 || r.rotation > 3) return fail('Invalid rotation on the board');
       const free = staged.checkSlotFree(r.slotId);
       if (!free.ok) return fail(free.error);
       staged.rooms.set(r.instanceId, r);

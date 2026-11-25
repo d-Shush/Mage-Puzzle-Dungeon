@@ -2,21 +2,20 @@
  * Domain types for the dungeon board. Nothing in `core/` touches the DOM, so
  * the rules can be unit-tested and reused.
  *
- * The board is a fixed set of flat-top hexagonal slots. Slots use "doubled
- * height" coordinates: `q` is the column (east +), `r` counts half-rows
- * (south +), and `q + r` is always even. Neighbours differ by (0,±2) or (±1,±1).
+ * The board is a square grid: `col` grows east (A, B, C…), `row` grows south
+ * (1, 2, 3…). Neighbours share a side: north, east, south or west.
  */
 
-export interface HexCoord {
-  readonly q: number;
-  readonly r: number;
+export interface GridCoord {
+  readonly col: number;
+  readonly row: number;
 }
 
-/** The six edges of a flat-top hexagon, clockwise from the top. */
-export type Side = 'n' | 'ne' | 'se' | 's' | 'sw' | 'nw';
+/** The four sides of a square slot, clockwise from the top. */
+export type Side = 'n' | 'e' | 's' | 'w';
 
-/** Rotation in clockwise 60° steps: 0 = 0°, 1 = 60° … 5 = 300°. */
-export type Rotation = 0 | 1 | 2 | 3 | 4 | 5;
+/** Rotation in clockwise 90° steps: 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°. */
+export type Rotation = 0 | 1 | 2 | 3;
 
 /**
  * What can be done with a room once it is on the board:
@@ -26,14 +25,22 @@ export type Rotation = 0 | 1 | 2 | 3 | 4 | 5;
  */
 export type RoomType = 'red' | 'blue' | 'green';
 
-/** `slot` can hold a room; `core` is the permanent prismatic centre. */
-export type SlotKind = 'slot' | 'core';
+/**
+ * - `slot`: holds a room
+ * - `core`: the permanent orb in the middle of the grid; no room
+ * - `landmark`: a named place outside the grid (e.g. Shaper's Library); no room
+ */
+export type SlotKind = 'slot' | 'core' | 'landmark';
 
 export interface SlotDefinition {
-  /** Stable id, also used as the visible label (e.g. "D3"). */
+  /** Stable id, also used as the visible label for grid slots (e.g. "D3"). */
   readonly id: string;
-  readonly coord: HexCoord;
+  readonly coord: GridCoord;
   readonly kind: SlotKind;
+  /** Display name for landmarks. */
+  readonly name?: string;
+  /** Small badge drawn on a landmark. */
+  readonly badge?: 'lock';
 }
 
 /** What the DM fills in when creating or editing a room. */
@@ -63,7 +70,7 @@ export interface RoomInstance {
 /** Everything the app keeps: the room catalogue and the board. */
 export interface SaveFile {
   readonly app: 'mage-puzzle-dungeon';
-  readonly version: 3;
+  readonly version: 4;
   readonly rooms: readonly RoomDefinition[];
   readonly board: readonly RoomInstance[];
   /** Slot of the party marker; absent or null when it is not on the board. */

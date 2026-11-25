@@ -68,9 +68,12 @@ device to share one map between them.
 - **+ New room** creates a room. **Edit** next to a room changes or deletes it
   (deleting also takes it off the board).
 - **Click an empty slot** → pick a room, type its number and press Enter, or
-  **+ Create new room** to create one straight into that slot.
+  **+ Create new room** to create one straight into that slot. Hovering a room
+  in that list (or typing its number) previews it, with its exits, in the slot.
 - **Click a room in the list** to select it on the board, or, if it is not
-  placed yet, then click an empty slot to place it.
+  placed yet, then click an empty slot to place it; a preview follows the
+  pointer over empty slots. Each room in the list and the selected room show a
+  small tile with their exits, turned as on the board.
 - **Click a room on the board** to select it. Then: **R** / **Shift+R** rotate,
   **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
@@ -139,7 +142,8 @@ in C0 and C8, and C4 becomes an ordinary slot.
 │   │   ├── gistStore.ts     # GitHub Gist implementation (api.github.com)
 │   │   └── syncManager.ts   # Upload / download / conflict logic
 │   ├── render/
-│   │   └── boardView.ts     # SVG board: frame, square slots, room tiles, exits
+│   │   ├── boardView.ts     # SVG board: frame, square slots, room tiles, exits, ghost preview
+│   │   └── roomTile.ts      # Small room tile with exits, used for previews
 │   └── ui/
 │       ├── controller.ts    # Interaction state: selection, move, picker, editor
 │       ├── roomEditor.ts    # Create / edit room dialog

@@ -1,9 +1,18 @@
 import { ROOM_TYPES } from '../core/roomTypes';
+import { roomTileSvg } from '../render/roomTile';
 import type { RoomDefinition } from '../core/types';
 import { button, h } from './dom';
 
 export interface PickerOption {
   readonly def: RoomDefinition;
+}
+
+export interface PickerHandlers {
+  onPick(definitionId: number): void;
+  onCreate(): void;
+  onClose(): void;
+  /** The room under the pointer / keyboard focus / typed number changed (undefined: none). */
+  onPreview(definitionId: number | undefined): void;
 }
 
 /**
@@ -33,15 +42,12 @@ export class RoomPicker {
     return !this.el.hidden;
   }
 
-  open(
-    slotId: string,
-    anchor: Element,
-    options: readonly PickerOption[],
-    onPick: (definitionId: number) => void,
-    onCreate: () => void,
-    onClose: () => void,
-  ): void {
-    this.onClose = onClose;
+  open(slotId: string, anchor: Element, options: readonly PickerOption[], handlers: PickerHandlers): void {
+    const { onPick, onCreate, onPreview } = handlers;
+    this.onClose = () => {
+      onPreview(undefined);
+      handlers.onClose();
+    };
     const input = h('input', {
       type: 'text',
       inputMode: 'numeric',
@@ -64,11 +70,14 @@ export class RoomPicker {
               const item = h(
                 'button',
                 { type: 'button', className: 'picker-item', title: o.def.description },
+                roomTileSvg(o.def, 0, 28),
                 h('span', { className: 'picker-num', textContent: String(o.def.id) }),
                 h('span', { className: 'picker-name', textContent: o.def.name }),
                 h('span', { className: `badge badge-${o.def.type}`, textContent: ROOM_TYPES[o.def.type].label }),
               );
               item.addEventListener('click', () => onPick(o.def.id));
+              item.addEventListener('pointerenter', () => onPreview(o.def.id));
+              item.addEventListener('focus', () => onPreview(o.def.id));
               return h('li', {}, item);
             })
           : [
@@ -79,7 +88,18 @@ export class RoomPicker {
             ]),
       );
     };
-    input.addEventListener('input', renderList);
+    // Preview the room whose number is typed, or the only match.
+    const previewTyped = () => {
+      const q = input.value.trim();
+      const found = matches();
+      const typed = options.find((o) => String(o.def.id) === q) ?? (q && found.length === 1 ? found[0] : undefined);
+      onPreview(typed?.def.id);
+    };
+    input.addEventListener('input', () => {
+      renderList();
+      previewTyped();
+    });
+    list.addEventListener('pointerleave', previewTyped);
     input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();

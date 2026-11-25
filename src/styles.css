@@ -213,6 +213,58 @@ body {
   opacity: 0.4;
 }
 
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- room tile previews ---------- */
+
+.tile-door {
+  fill: var(--gold-bright);
+}
+.tile-svg {
+  flex: none;
+  overflow: visible;
+}
+.ghost {
+  opacity: 0.72;
+  pointer-events: none;
+  animation: ghost-breathe 1.6s ease-in-out infinite;
+}
+.ghost .tile-floor {
+  stroke: var(--gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+@keyframes ghost-breathe {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost {
+    animation: none;
+  }
+}
+.selection-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.selection-info {
+  min-width: 0;
+  flex: 1;
+}
+.selection-info .muted {
+  margin: 4px 0 0;
+}
+
 /* ---------- party marker ---------- */
 
 .party-ring {

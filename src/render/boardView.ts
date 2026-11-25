@@ -2,6 +2,7 @@ import type { Dungeon } from '../core/dungeon';
 import { sideAngle } from '../core/grid';
 import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
 import type { GridCoord, RoomInstance, SlotDefinition } from '../core/types';
+import { roomTileGroup } from './roomTile';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -25,7 +26,12 @@ export interface BoardViewState {
   readonly moveTargets?: readonly string[];
   /** Slot whose room picker is open. */
   readonly pickingSlotId?: string;
+  /** Preview of a room about to be placed: drawn see-through in that slot. */
+  readonly ghost?: { readonly slotId: string; readonly definitionId: number };
 }
+
+/** Pointer (or keyboard focus) entered a slot, or left the board (undefined). */
+export type SlotHoverHandler = (slotId: string | undefined) => void;
 
 export type SlotClickHandler = (slotId: string, anchor: Element) => void;
 
@@ -100,6 +106,8 @@ export class BoardView {
   private readonly angles = new Map<string, { rotation: number; angle: number }>();
   private state: BoardViewState = {};
   private onSlotClick: SlotClickHandler = () => {};
+  private onSlotHover: SlotHoverHandler = () => {};
+  private readonly ghost = svg('g', { class: 'ghost', 'aria-hidden': 'true' });
   private party: PartyHandlers = { onDrop: () => {}, onClick: () => {} };
   private readonly partyToken: SVGGElement;
   private dragging = false;
@@ -134,7 +142,7 @@ export class BoardView {
       slotLayer.append(els.group);
     }
     this.partyToken = this.buildPartyToken();
-    this.element.append(slotLayer, svg('g', { class: 'party-layer' }, this.partyToken));
+    this.element.append(slotLayer, this.ghost, svg('g', { class: 'party-layer' }, this.partyToken));
     container.append(this.element);
 
     dungeon.subscribe(() => this.update());
@@ -143,6 +151,10 @@ export class BoardView {
 
   setSlotClickHandler(handler: SlotClickHandler): void {
     this.onSlotClick = handler;
+  }
+
+  setSlotHoverHandler(handler: SlotHoverHandler): void {
+    this.onSlotHover = handler;
   }
 
   setPartyHandlers(handlers: PartyHandlers): void {
@@ -187,6 +199,7 @@ export class BoardView {
       }
     }
     for (const id of this.angles.keys()) if (!live.has(id)) this.angles.delete(id);
+    this.updateGhost();
     this.updateParty();
   }
 
@@ -222,6 +235,27 @@ export class BoardView {
     }
     this.angles.set(room.instanceId, { rotation: room.rotation, angle });
     els.doors.style.transform = `rotate(${angle}deg)`;
+  }
+
+  /** Draw the room being placed, see-through, in its target slot. */
+  private updateGhost(): void {
+    const g = this.state.ghost;
+    const slot = g ? this.dungeon.board.get(g.slotId) : undefined;
+    const def = g ? this.dungeon.catalog.get(g.definitionId) : undefined;
+    if (!g || !slot || !def || this.dungeon.roomAt(slot.id)) {
+      this.ghost.replaceChildren();
+      this.ghost.dataset.key = '';
+      return;
+    }
+    const key = `${slot.id}:${def.id}:${def.type}:${def.doors.join(',')}:${def.name}`;
+    if (this.ghost.dataset.key === key) return;
+    this.ghost.dataset.key = key;
+    const { x, y } = toPixel(slot.coord);
+    this.ghost.setAttribute('transform', `translate(${x},${y})`);
+    const lines = wrap(def.name, 9, 2);
+    const name = svg('text', { class: 'room-name' });
+    lines.forEach((line, i) => name.append(svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)));
+    this.ghost.replaceChildren(roomTileGroup(def, 0, ORB), name);
   }
 
   // ---------- party marker ----------
@@ -416,6 +450,10 @@ export class BoardView {
     group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
 
     group.addEventListener('click', () => this.onSlotClick(slot.id, group));
+    group.addEventListener('pointerenter', () => this.onSlotHover(slot.id));
+    group.addEventListener('pointerleave', () => this.onSlotHover(undefined));
+    group.addEventListener('focus', () => this.onSlotHover(slot.id));
+    group.addEventListener('blur', () => this.onSlotHover(undefined));
     group.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

@@ -1,6 +1,7 @@
 import type { Dungeon } from '../core/dungeon';
 import { ROOM_TYPES, exitName } from '../core/roomTypes';
 import type { RoomDefinition } from '../core/types';
+import { roomTileSvg } from '../render/roomTile';
 import { button, h } from './dom';
 
 export interface PanelActions {
@@ -131,8 +132,17 @@ export class ControlPanel {
     move.disabled = !rules.canMove;
 
     this.selection.replaceChildren(
-      h('div', { className: 'selection-head' }, h('h2', { textContent: `#${def.id} ${def.name}` }), this.typeBadge(def)),
-      h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 90}°` }),
+      h(
+        'div',
+        { className: 'selection-top' },
+        roomTileSvg(def, room.rotation, 72),
+        h(
+          'div',
+          { className: 'selection-info' },
+          h('div', { className: 'selection-head' }, h('h2', { textContent: `#${def.id} ${def.name}` }), this.typeBadge(def)),
+          h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 90}°` }),
+        ),
+      ),
       ...(def.description ? [h('p', { className: 'player-text', textContent: def.description })] : []),
       h('p', { className: 'muted', textContent: `Exits as built: ${def.doors.length ? def.doors.map(exitName).join(', ') : 'none'}` }),
       h('div', { className: 'row' }, ccw, cw, move),
@@ -162,10 +172,15 @@ export class ControlPanel {
         const where = this.dungeon.placementOf(def.id);
         const locate = h(
           'button',
-          { type: 'button', className: 'room-row-main', title: def.description || def.name },
+          {
+            type: 'button',
+            className: 'room-row-main',
+            title: `${def.name} (${ROOM_TYPES[def.type].label})${def.description ? `\n${def.description}` : ''}`,
+          },
+          roomTileSvg(def, where?.rotation ?? 0, 26),
           h('span', { className: 'room-num', textContent: String(def.id) }),
           h('span', { className: 'room-row-name', textContent: def.name }),
-          this.typeBadge(def),
+          h('span', { className: 'visually-hidden', textContent: `, ${ROOM_TYPES[def.type].label}` }),
           h('span', { className: 'room-where', textContent: where ? where.slotId : 'not placed' }),
         );
         locate.addEventListener('click', () => this.actions.locateRoom(def.id));

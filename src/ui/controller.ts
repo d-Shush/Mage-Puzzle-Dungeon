@@ -20,6 +20,8 @@ export class Controller {
   /** Room chosen in the room list, waiting for a click on an empty slot. */
   private placingDefId: number | undefined;
   private pickingSlotId: string | undefined;
+  /** Room shown see-through in a slot before it is placed. */
+  private ghost: { slotId: string; definitionId: number } | undefined;
   private clearArmedUntil = 0;
   readonly panel: ControlPanel;
   private readonly picker: RoomPicker;
@@ -56,6 +58,7 @@ export class Controller {
     } else if (res.value.notice) this.panel.setStatus(res.value.notice);
 
     view.setSlotClickHandler((slotId, anchor) => this.onSlotClick(slotId, anchor));
+    view.setSlotHoverHandler((slotId) => this.onSlotHover(slotId));
     view.setPartyHandlers({
       onDrop: (slotId) => this.moveParty(slotId),
       onClick: () => this.toggleMoveParty(),
@@ -117,20 +120,31 @@ export class Controller {
   private openPicker(slotId: string, anchor: Element): void {
     this.pickingSlotId = slotId;
     this.sync();
-    this.picker.open(
-      slotId,
-      anchor,
-      this.dungeon.available().map((def) => ({ def })),
-      (definitionId) => {
+    this.picker.open(slotId, anchor, this.dungeon.available().map((def) => ({ def })), {
+      onPick: (definitionId) => {
         this.picker.close();
         this.placeAndSelect(slotId, definitionId);
       },
-      () => this.openEditor(undefined, slotId),
-      () => {
+      onCreate: () => this.openEditor(undefined, slotId),
+      onClose: () => {
         this.pickingSlotId = undefined;
         this.sync();
       },
-    );
+      onPreview: (definitionId) => this.setGhost(definitionId === undefined ? undefined : { slotId, definitionId }),
+    });
+  }
+
+  /** While placing a room from the room list, preview it in the empty slot under the pointer. */
+  private onSlotHover(slotId: string | undefined): void {
+    if (this.placingDefId === undefined) return;
+    const free = slotId !== undefined && this.dungeon.checkSlotFree(slotId).ok;
+    this.setGhost(free ? { slotId: slotId!, definitionId: this.placingDefId } : undefined);
+  }
+
+  private setGhost(ghost: { slotId: string; definitionId: number } | undefined): void {
+    if (ghost?.slotId === this.ghost?.slotId && ghost?.definitionId === this.ghost?.definitionId) return;
+    this.ghost = ghost;
+    this.sync();
   }
 
   private placeAndSelect(slotId: string, definitionId: number): void {
@@ -299,7 +313,8 @@ export class Controller {
     if (this.movingParty) targets = this.dungeon.board.all().map((s) => s.id);
     else if (this.moving && this.selectedId) targets = this.dungeon.moveTargets(this.selectedId);
     else if (this.placingDefId !== undefined) targets = this.dungeon.board.all().filter((s) => this.dungeon.checkSlotFree(s.id).ok).map((s) => s.id);
-    this.view.setState({ selectedId: this.selectedId, moveTargets: targets, pickingSlotId: this.pickingSlotId });
+    if (this.ghost && this.ghost.definitionId !== this.placingDefId && !this.pickingSlotId) this.ghost = undefined;
+    this.view.setState({ selectedId: this.selectedId, moveTargets: targets, pickingSlotId: this.pickingSlotId, ghost: this.ghost });
     this.panel?.setState({ selectedId: this.selectedId, moving: this.moving, movingParty: this.movingParty });
   }
 

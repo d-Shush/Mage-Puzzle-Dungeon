@@ -1,13 +1,17 @@
 # Mage Puzzle Dungeon
 
-A browser-based 3D dungeon map to support a D&D campaign. The DM adds rooms to
-the map by their number from a fixed catalogue. Each room is one of:
+A browser-based dungeon board for a D&D campaign, seen top-down in 2D. The
+board is a fixed hexagon of 30 hex slots (columns of 3-4-5-6-5-4-3). All slots
+start empty except the **prismatic core** (G4), which can never hold a room.
+Click an empty slot to place a room from the fixed catalogue.
 
-| Mobility    | Can rotate | Can move | Wall colour |
-| ----------- | ---------- | -------- | ----------- |
-| `fixed`     | no         | no       | grey        |
-| `rotatable` | yes (90°)  | no       | blue        |
-| `movable`   | no         | yes      | orange      |
+Each room is one of:
+
+| Mobility    | Glyph | Can rotate      | Can move               |
+| ----------- | ----- | --------------- | ---------------------- |
+| `fixed`     | ◆     | no              | no                     |
+| `rotatable` | ⟳     | yes, 60° steps  | no                     |
+| `movable`   | ✥     | no              | yes, to an empty slot  |
 
 ## Quick start
 
@@ -29,73 +33,75 @@ Open the URL Vite prints (default http://localhost:5173).
 | `npm test`          | Run unit tests (Vitest)                        |
 | `npm run typecheck` | TypeScript check only                          |
 
-The build is a static site with relative paths, so `dist/` can be hosted
-anywhere (GitHub Pages, Netlify, a USB stick at the table).
+The build is a static site with relative paths and the font bundled, so
+`dist/` works offline and can be hosted anywhere (GitHub Pages, Netlify…).
 
 ## Controls
 
-- Type a room number and press **Add room** — it is placed on the nearest free spot.
-- **Click** a room to select it; drag to orbit, scroll to zoom, right-drag to pan.
-- **Arrow keys** move a movable room, **R** rotates a rotatable room,
-  **Delete** removes, **Esc** deselects.
-- **Save / Load** keep the map in this browser's local storage.
+- **Click an empty slot** → pick a room from the list, or type its number and press Enter.
+- **Click a room** to select it. Then: **R** / **Shift+R** rotate, **M** move
+  (click a highlighted slot), **Delete** remove, **Esc** cancel.
+- **Save / Load** keep the board in this browser's local storage.
+
+## Slot labels
+
+Letters are half-rows from the top (A = top point … K = bottom point), numbers
+are columns 1–7 from the left. A4 is the top slot, K4 the bottom, D1/F1/H1 the
+left edge, and G4 the core. Change `label()` in `src/data/board.ts` to rename.
 
 ## Project structure
 
 ```
-├── index.html               # Page shell: canvas + side panel
+├── index.html               # Page shell: board + side panel
 ├── src/
-│   ├── main.ts              # Composition root: wires core, render and UI
+│   ├── main.ts              # Composition root
 │   ├── styles.css
-│   ├── core/                # Game rules — no Three.js, no DOM, fully unit-tested
-│   │   ├── types.ts         # RoomDefinition, RoomInstance, Mobility, Rotation…
-│   │   ├── mobility.ts      # What fixed / rotatable / movable allow (single source of truth)
-│   │   ├── geometry.ts      # Grid maths: rotating footprints and doors
-│   │   ├── catalog.ts       # Validated lookup of the fixed room list by number
-│   │   ├── dungeon.ts       # Map state: add / move / rotate / remove, collisions, snapshots
-│   │   └── persistence.ts   # Save / load snapshot in localStorage
+│   ├── core/                # Game rules — no DOM, fully unit-tested
+│   │   ├── types.ts         # SlotDefinition, RoomDefinition, RoomInstance, Mobility…
+│   │   ├── hex.ts           # Hex maths: neighbours, sides, rotation, pixel layout
+│   │   ├── board.ts         # Validated fixed board (slots by id / position)
+│   │   ├── catalog.ts       # Validated room list, looked up by number
+│   │   ├── mobility.ts      # What fixed / rotatable / movable allow (+ move range)
+│   │   ├── dungeon.ts       # Board state: place / rotate / move / remove, save snapshots
+│   │   └── persistence.ts   # localStorage save / load
 │   ├── data/
-│   │   └── rooms.ts         # ★ The room catalogue — edit this to define your rooms
-│   ├── render/              # Three.js — a read-only projection of the dungeon state
-│   │   ├── sceneManager.ts  # Scene, camera, lights, picking, syncing with state
-│   │   └── roomMesh.ts      # Builds floor tiles, walls and door openings for a room
+│   │   ├── board.ts         # ★ Board layout and slot labels
+│   │   └── rooms.ts         # ★ Room catalogue — edit this to define your rooms
+│   ├── render/
+│   │   └── boardView.ts     # SVG board: frame, slots, rooms, doors, prismatic core
 │   └── ui/
-│       └── controlPanel.ts  # Side panel and keyboard shortcuts
+│       ├── controller.ts    # Interaction state: selection, move mode, picker
+│       ├── roomPicker.ts    # Popover to choose a room for an empty slot
+│       ├── controlPanel.ts  # Side panel: selected room, catalogue, save/load
+│       └── dom.ts           # Small DOM helpers
 ├── tests/                   # Vitest unit tests for core/
-├── public/                  # Static assets (textures, models) served as-is
+├── public/                  # Static assets served as-is
 └── .github/workflows/ci.yml # Type-check, test and build on every push
 ```
 
 ### Design rules
 
-- **State flows one way.** `Dungeon` owns the map; the scene and the panel
-  subscribe to it and re-render. Neither changes the map except through
-  `Dungeon` methods, which return `{ ok, error }` so the UI can say why an
-  action was refused (e.g. "Blocked by another room").
-- **Grid-based.** Rooms are sets of cells on an integer grid. Rotation is in
-  90° clockwise steps around the room origin cell `(0, 0)`. Rooms never overlap.
-- **Mobility applies after placement.** The DM can place any room anywhere;
-  `fixed` / `rotatable` / `movable` restrict what can change afterwards. Tweak
-  `src/core/mobility.ts` to change those rules (e.g. let movable rooms rotate too).
+- **State flows one way.** `Dungeon` owns the board; the view and panel
+  subscribe and re-render. All changes go through `Dungeon` methods, which
+  return `{ ok, error }` so the UI can say why an action was refused.
+- **Hex grid in doubled-height coordinates** (`q` column, `r` half-row,
+  `q + r` even). Rooms fill one slot and rotate in 60° clockwise steps.
+- **Mobility applies after placement.** The DM can place or remove any room;
+  `fixed` / `rotatable` / `movable` restrict what changes afterwards. Set
+  `MOVE_RANGE = 'adjacent'` in `src/core/mobility.ts` for sliding-puzzle moves.
 
 ## Adding rooms to the catalogue
 
-Edit `src/data/rooms.ts`. The current six rooms are placeholders.
+Edit `src/data/rooms.ts`. The current eight rooms are placeholders.
 
 ```ts
 {
-  id: 7,                        // the number typed in to add it; must be unique
+  id: 9,                     // the room's number; must be unique
   name: 'Flooded Crypt',
   description: 'Knee-deep black water.',
-  mobility: 'rotatable',        // 'fixed' | 'rotatable' | 'movable'
-  footprint: [                  // cells relative to the origin; rotation pivots on (0,0)
-    { x: 0, z: 0 }, { x: 1, z: 0 }, { x: 0, z: 1 },
-  ],
-  doors: [{ cell: { x: 1, z: 0 }, side: 'east' }],
+  mobility: 'rotatable',     // 'fixed' | 'rotatable' | 'movable'
+  doors: ['n', 'se'],        // hex edges before rotation: n, ne, se, s, sw, nw
   color: '#2b4a5a',
-  wallHeight: 1,                // optional, in cells
+  maxCopies: 1,              // optional, how many can be on the board (default 1)
 }
 ```
-
-`x` grows east, `z` grows south. The catalogue is validated on start-up
-(unique ids, non-empty footprint, doors on footprint cells).

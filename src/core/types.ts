@@ -1,59 +1,62 @@
 /**
- * Domain types for the dungeon map. Nothing in `core/` depends on Three.js or
- * the DOM, so the rules can be unit-tested and reused (e.g. a future server).
+ * Domain types for the dungeon board. Nothing in `core/` touches the DOM, so
+ * the rules can be unit-tested and reused.
  *
- * Coordinate system: an integer grid on the ground plane. `x` grows east,
- * `z` grows south (matches Three.js with the camera looking down -Y).
- * One grid cell = one map tile (e.g. 5 ft / 10 ft — pick per campaign).
+ * The board is a fixed set of flat-top hexagonal slots. Slots use "doubled
+ * height" coordinates: `q` is the column (east +), `r` counts half-rows
+ * (south +), and `q + r` is always even. Neighbours differ by (0,±2) or (±1,±1).
  */
 
-/** How the players / DM may manipulate a placed room. */
+export interface HexCoord {
+  readonly q: number;
+  readonly r: number;
+}
+
+/** The six edges of a flat-top hexagon, clockwise from the top. */
+export type Side = 'n' | 'ne' | 'se' | 's' | 'sw' | 'nw';
+
+/** Rotation in clockwise 60° steps: 0 = 0°, 1 = 60° … 5 = 300°. */
+export type Rotation = 0 | 1 | 2 | 3 | 4 | 5;
+
+/** How a placed room may be manipulated afterwards. */
 export type Mobility = 'fixed' | 'rotatable' | 'movable';
 
-/** Rotation in clockwise quarter turns, viewed from above. */
-export type Rotation = 0 | 90 | 180 | 270;
+/** `slot` can hold a room; `core` is the permanent prismatic centre. */
+export type SlotKind = 'slot' | 'core';
 
-export type Side = 'north' | 'east' | 'south' | 'west';
-
-export interface GridPos {
-  readonly x: number;
-  readonly z: number;
+export interface SlotDefinition {
+  /** Stable id, also used as the visible label (e.g. "D3"). */
+  readonly id: string;
+  readonly coord: HexCoord;
+  readonly kind: SlotKind;
 }
 
-export interface Door {
-  /** Cell of the footprint (unrotated, relative to the room origin). */
-  readonly cell: GridPos;
-  /** Wall of that cell the door sits in (unrotated). */
-  readonly side: Side;
-}
-
-/** A room template from the fixed catalogue. Selected by its number. */
+/** A room template from the fixed catalogue, chosen by its number. */
 export interface RoomDefinition {
-  /** The number the DM types in to add this room. Unique. */
+  /** The room's number in the catalogue. Unique, positive integer. */
   readonly id: number;
   readonly name: string;
   readonly description: string;
   readonly mobility: Mobility;
-  /** Cells occupied by the room, relative to its origin (0,0). */
-  readonly footprint: readonly GridPos[];
-  readonly doors: readonly Door[];
-  /** Floor colour, any CSS colour string. */
+  /** Edges with a doorway, before rotation. */
+  readonly doors: readonly Side[];
+  /** Floor colour, any CSS colour. */
   readonly color: string;
-  /** Wall height in grid units. Defaults to 1. */
-  readonly wallHeight?: number;
+  /** How many copies may be on the board at once. Defaults to 1. */
+  readonly maxCopies?: number;
 }
 
-/** A room placed on the map. */
+/** A room placed in a slot. Instances are immutable; changes replace them. */
 export interface RoomInstance {
   readonly instanceId: string;
   readonly definitionId: number;
-  readonly position: GridPos;
+  readonly slotId: string;
   readonly rotation: Rotation;
 }
 
-/** Serializable snapshot of the whole map (for saving / loading sessions). */
+/** Serializable state of the board (for saving / loading a session). */
 export interface DungeonSnapshot {
-  readonly version: 1;
+  readonly version: 2;
   readonly rooms: readonly RoomInstance[];
 }
 

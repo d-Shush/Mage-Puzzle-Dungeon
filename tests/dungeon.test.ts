@@ -1,108 +1,113 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Board } from '../src/core/board';
 import { RoomCatalog } from '../src/core/catalog';
 import { Dungeon } from '../src/core/dungeon';
 import type { RoomDefinition } from '../src/core/types';
+import { BOARD_SLOTS } from '../src/data/board';
 import { ROOM_CATALOG } from '../src/data/rooms';
 
-const line = (n: number) => Array.from({ length: n }, (_, x) => ({ x, z: 0 }));
-
 const TEST_ROOMS: RoomDefinition[] = [
-  { id: 1, name: 'Fixed', description: '', mobility: 'fixed', footprint: line(2), doors: [], color: '#000' },
-  { id: 2, name: 'Spinner', description: '', mobility: 'rotatable', footprint: line(3), doors: [], color: '#000' },
-  { id: 3, name: 'Slider', description: '', mobility: 'movable', footprint: line(1), doors: [], color: '#000' },
+  { id: 1, name: 'Fixed', description: '', mobility: 'fixed', doors: ['n'], color: '#000' },
+  { id: 2, name: 'Spinner', description: '', mobility: 'rotatable', doors: ['n', 's'], color: '#000' },
+  { id: 3, name: 'Slider', description: '', mobility: 'movable', doors: [], color: '#000', maxCopies: 2 },
 ];
+
+const setup = <T>(res: { ok: true; value: T } | { ok: false; error: string }): T => {
+  if (!res.ok) throw new Error(res.error);
+  return res.value;
+};
 
 describe('Dungeon', () => {
   let dungeon: Dungeon;
   beforeEach(() => {
-    dungeon = new Dungeon(new RoomCatalog(TEST_ROOMS));
+    dungeon = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(TEST_ROOMS));
   });
 
-  it('adds rooms by catalogue number', () => {
-    const res = dungeon.add(2);
-    expect(res.ok).toBe(true);
-    expect(dungeon.list()).toHaveLength(1);
+  it('places a room by number into an empty slot', () => {
+    const room = setup(dungeon.place('A4', 2));
+    expect(room).toMatchObject({ slotId: 'A4', definitionId: 2, rotation: 0 });
+    expect(dungeon.roomAt('A4')?.instanceId).toBe(room.instanceId);
   });
 
-  it('rejects unknown numbers', () => {
-    const res = dungeon.add(99);
-    expect(res).toEqual({ ok: false, error: 'No room with number 99' });
+  it('refuses unknown rooms, unknown slots, occupied slots and the core', () => {
+    expect(dungeon.place('A4', 99)).toEqual({ ok: false, error: 'No room with number 99' });
+    expect(dungeon.place('Z9', 1).ok).toBe(false);
+    setup(dungeon.place('A4', 3));
+    expect(dungeon.place('A4', 3).ok).toBe(false);
+    expect(dungeon.place('G4', 1)).toEqual({ ok: false, error: 'The prismatic core cannot hold a room' });
   });
 
-  it('auto-places rooms without overlap', () => {
-    dungeon.add(1);
-    dungeon.add(1);
-    dungeon.add(2);
-    const occupied = dungeon.occupancy();
-    expect(occupied.size).toBe(2 + 2 + 3);
-  });
-
-  it('refuses explicit placement on occupied cells', () => {
-    dungeon.add(1, { x: 0, z: 0 });
-    expect(dungeon.add(3, { x: 1, z: 0 }).ok).toBe(false);
+  it('limits copies per room', () => {
+    setup(dungeon.place('A4', 1));
+    expect(dungeon.place('B3', 1).ok).toBe(false);
+    setup(dungeon.place('B3', 3));
+    setup(dungeon.place('B5', 3));
+    expect(dungeon.place('C4', 3).ok).toBe(false);
+    expect(dungeon.available().map((d) => d.id)).toEqual([2]);
   });
 
   it('enforces mobility rules', () => {
-    const fixed = dungeon.add(1, { x: 0, z: 0 });
-    const spinner = dungeon.add(2, { x: 0, z: 5 });
-    const slider = dungeon.add(3, { x: 0, z: -5 });
-    if (!fixed.ok || !spinner.ok || !slider.ok) throw new Error('setup failed');
+    const fixed = setup(dungeon.place('A4', 1));
+    const spinner = setup(dungeon.place('B3', 2));
+    const slider = setup(dungeon.place('B5', 3));
 
-    expect(dungeon.move(fixed.value.instanceId, { x: 1, z: 0 }).ok).toBe(false);
-    expect(dungeon.rotate(fixed.value.instanceId).ok).toBe(false);
+    expect(dungeon.rotate(fixed.instanceId).ok).toBe(false);
+    expect(dungeon.move(fixed.instanceId, 'C4').ok).toBe(false);
 
-    expect(dungeon.rotate(spinner.value.instanceId).ok).toBe(true);
-    expect(dungeon.move(spinner.value.instanceId, { x: 1, z: 0 }).ok).toBe(false);
+    expect(setup(dungeon.rotate(spinner.instanceId)).rotation).toBe(1);
+    expect(setup(dungeon.rotate(spinner.instanceId, -1)).rotation).toBe(0);
+    expect(setup(dungeon.rotate(spinner.instanceId, -1)).rotation).toBe(5);
+    expect(dungeon.move(spinner.instanceId, 'C4').ok).toBe(false);
 
-    expect(dungeon.move(slider.value.instanceId, { x: 1, z: 0 }).ok).toBe(true);
-    expect(dungeon.rotate(slider.value.instanceId).ok).toBe(false);
+    expect(dungeon.rotate(slider.instanceId).ok).toBe(false);
+    expect(setup(dungeon.move(slider.instanceId, 'K4')).slotId).toBe('K4');
+    expect(dungeon.roomAt('B5')).toBeUndefined();
   });
 
-  it('blocks moves and rotations into other rooms', () => {
-    const slider = dungeon.add(3, { x: 0, z: 0 });
-    dungeon.add(1, { x: 1, z: 0 });
-    const spinner = dungeon.add(2, { x: 0, z: 2 });
-    if (!slider.ok || !spinner.ok) throw new Error('setup failed');
-
-    expect(dungeon.move(slider.value.instanceId, { x: 1, z: 0 }).ok).toBe(false);
-    // Rotating 90° from (0,2) occupies (0,2),(0,3),(0,4) - free.
-    expect(dungeon.rotate(spinner.value.instanceId).ok).toBe(true);
-    // Next 90° turn occupies (0,2),(-1,2),(-2,2) - free; then 270° reaches (0,1),(0,0) - slider.
-    expect(dungeon.rotate(spinner.value.instanceId).ok).toBe(true);
-    expect(dungeon.rotate(spinner.value.instanceId).ok).toBe(false);
+  it('does not move onto occupied slots or the core', () => {
+    setup(dungeon.place('A4', 1));
+    const slider = setup(dungeon.place('B5', 3));
+    expect(dungeon.move(slider.instanceId, 'A4').ok).toBe(false);
+    expect(dungeon.move(slider.instanceId, 'G4').ok).toBe(false);
+    const targets = dungeon.moveTargets(slider.instanceId);
+    expect(targets).not.toContain('A4');
+    expect(targets).not.toContain('G4');
+    expect(targets).not.toContain('B5');
+    expect(targets).toHaveLength(30 - 3);
   });
 
   it('notifies subscribers on change', () => {
     let calls = 0;
     dungeon.subscribe(() => calls++);
-    dungeon.add(1);
+    setup(dungeon.place('A4', 1));
     dungeon.clear();
     expect(calls).toBe(2);
   });
 
   it('round-trips through a snapshot', () => {
-    dungeon.add(1);
-    dungeon.add(2);
+    setup(dungeon.place('A4', 1));
+    const spinner = setup(dungeon.place('B3', 2));
+    setup(dungeon.rotate(spinner.instanceId));
     const snap = dungeon.toSnapshot();
 
-    const other = new Dungeon(new RoomCatalog(TEST_ROOMS));
+    const other = new Dungeon(dungeon.board, dungeon.catalog);
     expect(other.loadSnapshot(snap).ok).toBe(true);
     expect(other.list()).toEqual(dungeon.list());
-    // New ids must not collide with loaded ones.
-    const added = other.add(3);
-    expect(added.ok && snap.rooms.every((r) => r.instanceId !== added.value.instanceId)).toBe(true);
+    const added = setup(other.place('C4', 3));
+    expect(snap.rooms.map((r) => r.instanceId)).not.toContain(added.instanceId);
   });
 
-  it('rejects overlapping snapshots without changing state', () => {
-    dungeon.add(3);
+  it('rejects invalid snapshots without changing state', () => {
+    setup(dungeon.place('A4', 3));
     const bad = {
-      version: 1 as const,
+      version: 2 as const,
       rooms: [
-        { instanceId: 'room-1', definitionId: 1, position: { x: 0, z: 0 }, rotation: 0 as const },
-        { instanceId: 'room-2', definitionId: 1, position: { x: 1, z: 0 }, rotation: 0 as const },
+        { instanceId: 'room-1', definitionId: 1, slotId: 'B3', rotation: 0 as const },
+        { instanceId: 'room-2', definitionId: 2, slotId: 'B3', rotation: 0 as const },
       ],
     };
     expect(dungeon.loadSnapshot(bad).ok).toBe(false);
+    expect(dungeon.loadSnapshot({ ...bad, rooms: [{ ...bad.rooms[0]!, slotId: 'G4' }] }).ok).toBe(false);
     expect(dungeon.list()).toHaveLength(1);
   });
 });
@@ -112,12 +117,8 @@ describe('RoomCatalog', () => {
     expect(() => new RoomCatalog(ROOM_CATALOG)).not.toThrow();
   });
 
-  it('rejects duplicate ids', () => {
+  it('rejects duplicate ids and bad doors', () => {
     expect(() => new RoomCatalog([TEST_ROOMS[0]!, TEST_ROOMS[0]!])).toThrow(/Duplicate/);
-  });
-
-  it('rejects doors outside the footprint', () => {
-    const bad = { ...TEST_ROOMS[0]!, doors: [{ cell: { x: 9, z: 9 }, side: 'north' as const }] };
-    expect(() => new RoomCatalog([bad])).toThrow(/door/);
+    expect(() => new RoomCatalog([{ ...TEST_ROOMS[0]!, doors: ['n', 'n'] }])).toThrow(/duplicate door/);
   });
 });

@@ -1,195 +1,114 @@
-import type { RoomCatalog } from '../core/catalog';
 import type { Dungeon } from '../core/dungeon';
 import { MOBILITY_RULES } from '../core/mobility';
-import { loadLocal, saveLocal } from '../core/persistence';
-import type { GridPos, Result } from '../core/types';
+import { button, h } from './dom';
 
-type El<K extends keyof HTMLElementTagNameMap> = HTMLElementTagNameMap[K];
-
-function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: Partial<El<K>> & { className?: string } = {},
-  ...children: (Node | string)[]
-): El<K> {
-  const el = Object.assign(document.createElement(tag), props);
-  el.append(...children);
-  return el;
+export interface PanelActions {
+  rotate(direction: 1 | -1): void;
+  toggleMove(): void;
+  remove(): void;
+  deselect(): void;
+  save(): void;
+  load(): void;
+  clear(): void;
 }
 
-const ARROW_DELTAS: Record<string, GridPos> = {
-  ArrowUp: { x: 0, z: -1 },
-  ArrowDown: { x: 0, z: 1 },
-  ArrowLeft: { x: -1, z: 0 },
-  ArrowRight: { x: 1, z: 0 },
-};
+export interface PanelState {
+  readonly selectedId?: string;
+  readonly moving: boolean;
+}
 
-/**
- * The side panel: add a room by number, act on the selected room, save/load.
- * All actions call into Dungeon; the panel only reflects its state.
- */
+/** Side panel: selected room details and actions, catalogue, save/load. */
 export class ControlPanel {
-  private selectedId: string | undefined;
-  private onSelect: (id: string | undefined) => void = () => {};
-
-  private readonly status = h('p', { className: 'status' });
+  private readonly status = h('p', { className: 'status', role: 'status' });
   private readonly selection = h('section', { className: 'selection' });
+  private readonly catalogList = h('ol', { className: 'catalog' });
+  private state: PanelState = { moving: false };
 
   constructor(
-    private readonly root: HTMLElement,
+    root: HTMLElement,
     private readonly dungeon: Dungeon,
-    private readonly catalog: RoomCatalog,
+    private readonly actions: PanelActions,
   ) {
-    this.render();
-    dungeon.subscribe(() => {
-      if (this.selectedId && !dungeon.get(this.selectedId)) this.select(undefined);
-      else this.renderSelection();
-    });
-    window.addEventListener('keydown', (e) => this.onKey(e));
-  }
-
-  setSelectHandler(handler: (id: string | undefined) => void): void {
-    this.onSelect = handler;
-  }
-
-  select(id: string | undefined): void {
-    this.selectedId = id;
-    this.onSelect(id);
-    this.renderSelection();
-  }
-
-  private render(): void {
-    const input = h('input', { type: 'number', min: '1', placeholder: 'Room #', id: 'room-number' });
-    const form = h(
-      'form',
-      { className: 'add-form' },
-      input,
-      h('button', { type: 'submit', textContent: 'Add room' }),
-    );
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const n = Number(input.value);
-      const res = this.report(this.dungeon.add(n), (r) => `Added #${n} (${this.dungeon.definitionOf(r).name})`);
-      if (res.ok) {
-        this.select(res.value.instanceId);
-        input.value = '';
-      }
-    });
-
-    const catalogList = h(
-      'ol',
-      { className: 'catalog' },
-      ...this.catalog.all().map((def) =>
-        h(
-          'li',
-          { value: def.id, title: def.description },
-          h('span', { className: 'room-name', textContent: def.name }),
-          h('span', { className: `badge badge-${def.mobility}`, textContent: MOBILITY_RULES[def.mobility].label }),
-        ),
-      ),
-    );
-
-    const fileActions = h(
-      'div',
-      { className: 'row' },
-      this.button('Save', () => this.setStatus(saveLocal(this.dungeon.toSnapshot()) ? 'Map saved in this browser' : 'Could not save', false)),
-      this.button('Load', () => {
-        const snap = loadLocal();
-        if (!snap) return this.setStatus('No saved map found', true);
-        this.report(this.dungeon.loadSnapshot(snap), () => 'Map loaded');
-      }),
-      this.button('Clear', () => {
-        if (confirm('Remove all rooms from the map?')) this.dungeon.clear();
-      }),
-    );
-
-    this.root.replaceChildren(
+    root.replaceChildren(
       h('h1', { textContent: 'Mage Puzzle Dungeon' }),
-      form,
+      h('p', { className: 'hint', textContent: 'Click an empty slot to place a room. Click a room to select it.' }),
       this.status,
       this.selection,
       h('h2', { textContent: 'Room catalogue' }),
-      catalogList,
-      h('h2', { textContent: 'Map' }),
-      fileActions,
-      h('p', { className: 'hint', textContent: 'Click a room to select it. Arrow keys move, R rotates, Delete removes.' }),
+      this.catalogList,
+      h('h2', { textContent: 'Board' }),
+      h(
+        'div',
+        { className: 'row' },
+        button('Save', () => actions.save()),
+        button('Load', () => actions.load()),
+        button('Clear', () => actions.clear()),
+      ),
+      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · Delete remove · Esc cancel' }),
     );
+    dungeon.subscribe(() => this.render());
+    this.render();
+  }
+
+  setState(state: PanelState): void {
+    this.state = state;
+    this.render();
+  }
+
+  setStatus(text: string, isError = false): void {
+    this.status.textContent = text;
+    this.status.classList.toggle('error', isError);
+  }
+
+  private render(): void {
     this.renderSelection();
+    this.renderCatalog();
   }
 
   private renderSelection(): void {
-    const room = this.selectedId ? this.dungeon.get(this.selectedId) : undefined;
+    const room = this.state.selectedId ? this.dungeon.get(this.state.selectedId) : undefined;
     if (!room) {
       this.selection.replaceChildren(h('p', { className: 'muted', textContent: 'No room selected' }));
       return;
     }
     const def = this.dungeon.definitionOf(room);
     const rules = MOBILITY_RULES[def.mobility];
-    const moveBtn = (label: string, d: GridPos) => {
-      const b = this.button(label, () => this.moveSelected(d));
-      b.disabled = !rules.canMove;
-      return b;
-    };
-    const rotate = this.button('Rotate ⟳', () => this.rotateSelected());
-    rotate.disabled = !rules.canRotate;
+
+    const ccw = button('⟲ Rotate', () => this.actions.rotate(-1));
+    const cw = button('Rotate ⟳', () => this.actions.rotate(1));
+    ccw.disabled = cw.disabled = !rules.canRotate;
+    const move = button(this.state.moving ? 'Cancel move' : 'Move…', () => this.actions.toggleMove(), this.state.moving ? 'active' : '');
+    move.disabled = !rules.canMove;
 
     this.selection.replaceChildren(
-      h('h2', { textContent: `#${def.id} ${def.name}` }),
-      h('p', { className: 'muted', textContent: def.description }),
-      h('p', { textContent: `${rules.label} · at (${room.position.x}, ${room.position.z}) · ${room.rotation}°` }),
       h(
         'div',
-        { className: 'row' },
-        moveBtn('←', { x: -1, z: 0 }),
-        moveBtn('↑', { x: 0, z: -1 }),
-        moveBtn('↓', { x: 0, z: 1 }),
-        moveBtn('→', { x: 1, z: 0 }),
-        rotate,
+        { className: 'selection-head' },
+        h('span', { className: 'swatch' }),
+        h('h2', { textContent: `#${def.id} ${def.name}` }),
       ),
-      h('div', { className: 'row' }, this.button('Remove', () => this.removeSelected())),
+      h('p', { className: 'muted', textContent: def.description }),
+      h('p', {}, h('span', { className: `badge badge-${def.mobility}`, textContent: `${rules.glyph} ${rules.label}` }), ` Slot ${room.slotId} · ${room.rotation * 60}°`),
+      h('div', { className: 'row' }, ccw, cw, move),
+      h('div', { className: 'row' }, button('Remove', () => this.actions.remove(), 'danger'), button('Deselect', () => this.actions.deselect())),
     );
+    (this.selection.querySelector('.swatch') as HTMLElement).style.background = def.color;
   }
 
-  private onKey(e: KeyboardEvent): void {
-    if (!this.selectedId || e.target instanceof HTMLInputElement) return;
-    const delta = ARROW_DELTAS[e.key];
-    if (delta) {
-      e.preventDefault();
-      this.moveSelected(delta);
-    } else if (e.key === 'r' || e.key === 'R') {
-      this.rotateSelected();
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      this.removeSelected();
-    } else if (e.key === 'Escape') {
-      this.select(undefined);
-    }
-  }
-
-  private moveSelected(d: GridPos): void {
-    if (this.selectedId) this.report(this.dungeon.move(this.selectedId, d));
-  }
-
-  private rotateSelected(): void {
-    if (this.selectedId) this.report(this.dungeon.rotate(this.selectedId));
-  }
-
-  private removeSelected(): void {
-    if (this.selectedId) this.report(this.dungeon.remove(this.selectedId), () => 'Room removed');
-  }
-
-  private report<T>(res: Result<T>, success?: (value: T) => string): Result<T> {
-    if (res.ok) this.setStatus(success ? success(res.value) : '', false);
-    else this.setStatus(res.error, true);
-    return res;
-  }
-
-  private setStatus(text: string, isError: boolean): void {
-    this.status.textContent = text;
-    this.status.classList.toggle('error', isError);
-  }
-
-  private button(label: string, onClick: () => void): HTMLButtonElement {
-    const b = h('button', { type: 'button', textContent: label });
-    b.addEventListener('click', onClick);
-    return b;
+  private renderCatalog(): void {
+    this.catalogList.replaceChildren(
+      ...this.dungeon.catalog.all().map((def) => {
+        const max = def.maxCopies ?? 1;
+        const placed = this.dungeon.placedCount(def.id);
+        const rules = MOBILITY_RULES[def.mobility];
+        return h(
+          'li',
+          { value: def.id, title: def.description, className: placed >= max ? 'used' : '' },
+          h('span', { className: 'room-name', textContent: def.name }),
+          h('span', { className: `badge badge-${def.mobility}`, textContent: `${rules.glyph} ${rules.label}` }),
+          h('span', { className: 'count', textContent: `${placed}/${max}` }),
+        );
+      }),
+    );
   }
 }

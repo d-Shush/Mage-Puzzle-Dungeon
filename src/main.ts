@@ -1,19 +1,18 @@
+import '@fontsource/cinzel/latin-400.css';
+import '@fontsource/cinzel/latin-700.css';
 import './styles.css';
+import { Board } from './core/board';
 import { RoomCatalog } from './core/catalog';
 import { Dungeon } from './core/dungeon';
+import { BOARD_SLOTS } from './data/board';
 import { ROOM_CATALOG } from './data/rooms';
-import { SceneManager } from './render/sceneManager';
-import { ControlPanel } from './ui/controlPanel';
+import { BoardView } from './render/boardView';
+import { Controller } from './ui/controller';
 
-const canvas = document.querySelector<HTMLCanvasElement>('#scene');
+const boardHost = document.querySelector<HTMLElement>('#board');
 const panelRoot = document.querySelector<HTMLElement>('#panel');
-if (!canvas || !panelRoot) throw new Error('index.html is missing #scene or #panel');
+if (!boardHost || !panelRoot) throw new Error('index.html is missing #board or #panel');
 
-const catalog = new RoomCatalog(ROOM_CATALOG);
-const dungeon = new Dungeon(catalog);
-const scene = new SceneManager(canvas, dungeon);
-const panel = new ControlPanel(panelRoot, dungeon, catalog);
-
-// Wire selection both ways: clicking in 3D selects in the panel and vice versa.
-scene.setPickHandler((id) => panel.select(id));
-panel.setSelectHandler((id) => scene.setSelected(id));
+const dungeon = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(ROOM_CATALOG));
+const view = new BoardView(boardHost, dungeon);
+new Controller(dungeon, view, panelRoot, boardHost);

@@ -1,14 +1,16 @@
 :root {
-  --bg: #14161c;
-  --panel: #1d2029;
-  --border: #2e3240;
-  --text: #e6e3da;
-  --muted: #8d90a0;
-  --accent: #d9a441;
-  --error: #ff6b6b;
-  --fixed: #8a8f99;
-  --rotatable: #4fa3ff;
-  --movable: #ffb347;
+  --bg: #0e0a14;
+  --panel: #16111f;
+  --border: #3a2e48;
+  --text: #efe6d2;
+  --muted: #9a8fa8;
+  --gold: #d9a441;
+  --gold-bright: #ffe7a3;
+  --error: #ff7a7a;
+  --fixed: #b8b2c4;
+  --rotatable: #7cc4ff;
+  --movable: #ffb86b;
+  --display: 'Cinzel', Georgia, 'Times New Roman', serif;
   color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -21,34 +23,41 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: radial-gradient(ellipse at 40% 45%, #1d1328 0%, var(--bg) 70%);
   color: var(--text);
 }
 
 #app {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 340px;
   height: 100%;
 }
 
-#scene {
-  width: 100%;
-  height: 100%;
-  display: block;
-  touch-action: none;
+#board {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: hidden;
 }
 
 #panel {
   background: var(--panel);
   border-left: 1px solid var(--border);
-  padding: 16px;
+  padding: 20px 18px;
   overflow-y: auto;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
   #app {
     grid-template-columns: 1fr;
-    grid-template-rows: 60vh auto;
+    grid-template-rows: auto auto;
+    height: auto;
+  }
+  #board {
+    height: min(100vw, 75vh);
+    padding: 8px;
   }
   #panel {
     border-left: none;
@@ -56,18 +65,268 @@ body {
   }
 }
 
+/* ---------- board ---------- */
+
+.board {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.frame-fill {
+  fill: url(#frame-fill);
+}
+.frame-outer {
+  fill: none;
+  stroke: url(#gold);
+  stroke-width: 5;
+  filter: url(#glow);
+}
+.frame-inner {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+.frame-orbit {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 0.8;
+  opacity: 0.25;
+}
+.frame-star {
+  fill: var(--gold-bright);
+  filter: url(#glow);
+}
+
+.slot {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.2s;
+}
+.slot-base {
+  fill: url(#slot-fill);
+}
+.slot-rim {
+  fill: none;
+  stroke: url(#gold);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  transition: stroke-width 0.15s;
+}
+.slot-rim-inner {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: 0.6;
+  stroke-width: 2;
+}
+.slot-label {
+  font-family: var(--display);
+  font-size: 13px;
+  fill: var(--gold-bright);
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.slot-room {
+  display: none;
+  pointer-events: none;
+}
+.slot.is-filled .slot-room {
+  display: inline;
+}
+.slot.is-filled .slot-label {
+  display: none;
+}
+.room-sheen {
+  fill: url(#room-sheen);
+}
+.room-doors {
+  transition: transform 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.door {
+  fill: var(--gold-bright);
+  filter: url(#glow);
+}
+.board .room-number {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 20px;
+  fill: #fff;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #000a;
+  stroke-width: 3px;
+}
+.board .room-name {
+  font-size: 8.5px;
+  fill: #f4ecda;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #000a;
+  stroke-width: 2.5px;
+}
+.room-glyph {
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.glyph-fixed {
+  fill: var(--fixed);
+}
+.glyph-rotatable {
+  fill: var(--rotatable);
+}
+.glyph-movable {
+  fill: var(--movable);
+}
+
+.slot-core {
+  cursor: default;
+}
+.core-fill {
+  fill: url(#prism);
+  opacity: 0.9;
+}
+.core-orb {
+  fill: url(#prism);
+  stroke: #ffffffaa;
+  stroke-width: 1.5;
+  filter: url(#glow);
+}
+.core-shine {
+  fill: url(#pearl-shine);
+}
+
+@media (hover: hover) {
+  .slot.is-empty:hover .slot-rim,
+  .slot.is-filled:hover .slot-rim {
+    stroke-width: 6;
+  }
+  .slot.is-empty:hover .slot-base {
+    fill: #2a2036;
+  }
+}
+.slot:focus-visible .slot-rim,
+.slot.is-picking .slot-rim {
+  stroke: var(--gold-bright);
+  stroke-width: 6;
+}
+.slot.is-picking .slot-base {
+  fill: #2a2036;
+}
+.slot.is-selected .slot-rim {
+  stroke: #fff;
+  stroke-width: 6;
+  filter: url(#glow);
+}
+.slot.is-target .slot-base {
+  fill: #23402f;
+}
+.slot.is-target .slot-rim {
+  stroke: #8cf0a8;
+  stroke-width: 5;
+}
+.slot.is-dimmed {
+  opacity: 0.45;
+}
+
+/* ---------- room picker ---------- */
+
+.picker {
+  position: absolute;
+  z-index: 10;
+  width: 280px;
+  max-height: min(420px, calc(100% - 20px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #1a1324;
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px #000c, 0 0 20px #d9a44133;
+}
+.picker[hidden] {
+  display: none;
+}
+.picker h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  color: var(--gold-bright);
+}
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.picker-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+.picker-item:hover,
+.picker-item:focus-visible {
+  background: #2a2036;
+  border-color: var(--border);
+}
+.picker-num {
+  font-family: var(--display);
+  font-weight: 700;
+  color: var(--gold-bright);
+  min-width: 1.6em;
+  text-align: right;
+}
+.picker-name {
+  flex: 1;
+}
+.picker-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 820px) {
+  .picker {
+    position: fixed;
+    left: 8px !important;
+    right: 8px;
+    top: auto !important;
+    bottom: 8px;
+    width: auto;
+    max-height: 60vh;
+  }
+}
+
+/* ---------- panel ---------- */
+
 h1 {
-  font-size: 1.2rem;
-  margin: 0 0 12px;
-  color: var(--accent);
+  font-family: var(--display);
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+  color: var(--gold-bright);
+  letter-spacing: 0.03em;
 }
 
 h2 {
+  font-family: var(--display);
   font-size: 0.95rem;
-  margin: 16px 0 8px;
+  margin: 18px 0 8px;
+  color: var(--gold);
 }
 
-.add-form,
 .row {
   display: flex;
   gap: 6px;
@@ -83,47 +342,62 @@ button {
   border-radius: 6px;
   padding: 6px 10px;
 }
-
-input {
-  flex: 1;
-  min-width: 0;
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
-
 button {
   cursor: pointer;
 }
-
 button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--gold);
 }
-
 button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
+button.active {
+  border-color: #8cf0a8;
+  color: #8cf0a8;
+}
+button.danger:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
+}
 
 .status {
-  min-height: 1.2em;
+  min-height: 1.3em;
   font-size: 0.85rem;
   color: var(--muted);
 }
-
 .status.error {
   color: var(--error);
 }
 
 .selection {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 12px;
+  background: #0e0a1466;
 }
-
-.selection h2 {
-  margin-top: 0;
+.selection-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-
+.selection-head h2 {
+  margin: 0;
+}
 .selection .row + .row {
   margin-top: 6px;
+}
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--gold);
+  flex: none;
 }
 
 .muted,
@@ -136,13 +410,21 @@ button:disabled {
   padding-left: 28px;
   margin: 0;
 }
-
 .catalog li {
   padding: 3px 0;
 }
-
-.catalog li > span {
-  vertical-align: middle;
+.catalog li::marker {
+  font-family: var(--display);
+  color: var(--gold);
+}
+.catalog li.used .room-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.catalog .count {
+  float: right;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .badge {
@@ -151,8 +433,11 @@ button:disabled {
   border-radius: 999px;
   margin-left: 6px;
   border: 1px solid currentColor;
+  white-space: nowrap;
 }
-
+.picker .badge {
+  margin-left: 0;
+}
 .badge-fixed {
   color: var(--fixed);
 }

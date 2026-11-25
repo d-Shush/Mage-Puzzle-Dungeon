@@ -1,14 +1,8 @@
+import type { Board } from './board';
 import type { RoomCatalog } from './catalog';
-import { cellKey, nextRotation, worldCells } from './geometry';
-import { MOBILITY_RULES } from './mobility';
-import type {
-  DungeonSnapshot,
-  GridPos,
-  Result,
-  RoomDefinition,
-  RoomInstance,
-  Rotation,
-} from './types';
+import { addRotation } from './hex';
+import { MOBILITY_RULES, MOVE_RANGE } from './mobility';
+import type { DungeonSnapshot, Result, RoomDefinition, RoomInstance } from './types';
 
 export type DungeonListener = (rooms: readonly RoomInstance[]) => void;
 
@@ -16,16 +10,19 @@ const ok = <T>(value: T): Result<T> => ({ ok: true, value });
 const fail = <T>(error: string): Result<T> => ({ ok: false, error });
 
 /**
- * The map state and its rules: placement, collisions and mobility.
- * Every mutation goes through here and returns a Result instead of throwing,
- * so the UI can show the reason a move was refused.
+ * State of the board and its rules: which room sits in which slot, and what
+ * may be rotated or moved. Every mutation returns a Result instead of throwing
+ * so the UI can show why an action was refused.
  */
 export class Dungeon {
   private rooms = new Map<string, RoomInstance>();
   private listeners = new Set<DungeonListener>();
   private nextId = 1;
 
-  constructor(private readonly catalog: RoomCatalog) {}
+  constructor(
+    readonly board: Board,
+    readonly catalog: RoomCatalog,
+  ) {}
 
   // ---------- queries ----------
 
@@ -37,69 +34,64 @@ export class Dungeon {
     return this.rooms.get(instanceId);
   }
 
+  roomAt(slotId: string): RoomInstance | undefined {
+    for (const room of this.rooms.values()) if (room.slotId === slotId) return room;
+    return undefined;
+  }
+
   definitionOf(room: RoomInstance): RoomDefinition {
     const def = this.catalog.get(room.definitionId);
     if (!def) throw new Error(`Unknown room definition ${room.definitionId}`);
     return def;
   }
 
-  /** Map of occupied cell -> instanceId, optionally ignoring one room. */
-  occupancy(ignoreInstanceId?: string): Map<string, string> {
-    const occ = new Map<string, string>();
-    for (const room of this.rooms.values()) {
-      if (room.instanceId === ignoreInstanceId) continue;
-      for (const c of worldCells(this.definitionOf(room), room.position, room.rotation)) {
-        occ.set(cellKey(c), room.instanceId);
-      }
-    }
-    return occ;
+  placedCount(definitionId: number): number {
+    let n = 0;
+    for (const room of this.rooms.values()) if (room.definitionId === definitionId) n++;
+    return n;
   }
 
-  canPlace(def: RoomDefinition, position: GridPos, rotation: Rotation, ignoreInstanceId?: string): boolean {
-    const occ = this.occupancy(ignoreInstanceId);
-    return worldCells(def, position, rotation).every((c) => !occ.has(cellKey(c)));
+  remainingCopies(def: RoomDefinition): number {
+    return (def.maxCopies ?? 1) - this.placedCount(def.id);
   }
 
-  /** Nearest free position to `near` (square spiral search). */
-  findFreePosition(def: RoomDefinition, rotation: Rotation = 0, near: GridPos = { x: 0, z: 0 }, maxRadius = 50): GridPos | undefined {
-    for (let r = 0; r <= maxRadius; r++) {
-      for (let dz = -r; dz <= r; dz++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-          const pos = { x: near.x + dx, z: near.z + dz };
-          if (this.canPlace(def, pos, rotation)) return pos;
-        }
-      }
-    }
-    return undefined;
+  /** Catalogue rooms that still have a copy left to place. */
+  available(): RoomDefinition[] {
+    return this.catalog.all().filter((d) => this.remainingCopies(d) > 0);
+  }
+
+  /** Whether a slot can receive a room (exists, is not the core, is empty). */
+  checkSlotFree(slotId: string): Result<void> {
+    const slot = this.board.get(slotId);
+    if (!slot) return fail(`No slot ${slotId}`);
+    if (slot.kind === 'core') return fail('The prismatic core cannot hold a room');
+    if (this.roomAt(slotId)) return fail(`Slot ${slotId} is already occupied`);
+    return ok(undefined);
+  }
+
+  /** Slots the given room may move to. Empty if the room cannot move. */
+  moveTargets(instanceId: string): string[] {
+    const room = this.rooms.get(instanceId);
+    if (!room || !MOBILITY_RULES[this.definitionOf(room).mobility].canMove) return [];
+    const candidates = MOVE_RANGE === 'adjacent' ? this.board.neighbours(room.slotId) : this.board.all();
+    return candidates.filter((s) => this.checkSlotFree(s.id).ok).map((s) => s.id);
   }
 
   // ---------- mutations ----------
 
-  /**
-   * Add a room from the catalogue by its number. Without a position the room
-   * is put on the nearest free spot to the origin. Placement by the DM is
-   * always allowed regardless of mobility; mobility restricts later changes.
-   */
-  add(definitionId: number, position?: GridPos, rotation: Rotation = 0): Result<RoomInstance> {
+  /** Place a catalogue room (by number) into an empty slot. */
+  place(slotId: string, definitionId: number): Result<RoomInstance> {
     const def = this.catalog.get(definitionId);
     if (!def) return fail(`No room with number ${definitionId}`);
+    const free = this.checkSlotFree(slotId);
+    if (!free.ok) return fail(free.error);
+    if (this.remainingCopies(def) <= 0) return fail(`${def.name} is already on the board`);
 
-    const pos = position ?? this.findFreePosition(def, rotation);
-    if (!pos) return fail('No free space for this room');
-    if (!this.canPlace(def, pos, rotation)) return fail('That space is already occupied');
-
-    const room: RoomInstance = {
-      instanceId: `room-${this.nextId++}`,
-      definitionId,
-      position: pos,
-      rotation,
-    };
-    this.rooms.set(room.instanceId, room);
-    this.emit();
-    return ok(room);
+    const room: RoomInstance = { instanceId: `room-${this.nextId++}`, definitionId, slotId, rotation: 0 };
+    return this.commit(room);
   }
 
+  /** Remove a room from the board. Always allowed (DM correction). */
   remove(instanceId: string): Result<RoomInstance> {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
@@ -108,28 +100,24 @@ export class Dungeon {
     return ok(room);
   }
 
-  /** Move a room by a grid offset. Only allowed for movable rooms. */
-  move(instanceId: string, delta: GridPos): Result<RoomInstance> {
-    const room = this.rooms.get(instanceId);
-    if (!room) return fail('Room not found');
-    const def = this.definitionOf(room);
-    if (!MOBILITY_RULES[def.mobility].canMove) return fail(`${def.name} cannot be moved`);
-
-    const position = { x: room.position.x + delta.x, z: room.position.z + delta.z };
-    if (!this.canPlace(def, position, room.rotation, instanceId)) return fail('Blocked by another room');
-    return this.replace({ ...room, position });
-  }
-
-  /** Rotate a room 90° clockwise in place. Only allowed for rotatable rooms. */
-  rotate(instanceId: string): Result<RoomInstance> {
+  /** Rotate by 60° clockwise (direction 1) or counter-clockwise (-1). */
+  rotate(instanceId: string, direction: 1 | -1 = 1): Result<RoomInstance> {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
     if (!MOBILITY_RULES[def.mobility].canRotate) return fail(`${def.name} cannot be rotated`);
+    return this.commit({ ...room, rotation: addRotation(room.rotation, direction) });
+  }
 
-    const rotation = nextRotation(room.rotation);
-    if (!this.canPlace(def, room.position, rotation, instanceId)) return fail('Not enough room to rotate');
-    return this.replace({ ...room, rotation });
+  move(instanceId: string, toSlotId: string): Result<RoomInstance> {
+    const room = this.rooms.get(instanceId);
+    if (!room) return fail('Room not found');
+    const def = this.definitionOf(room);
+    if (!MOBILITY_RULES[def.mobility].canMove) return fail(`${def.name} cannot be moved`);
+    const free = this.checkSlotFree(toSlotId);
+    if (!free.ok) return fail(free.error);
+    if (!this.moveTargets(instanceId).includes(toSlotId)) return fail(`${def.name} can only move to an adjacent slot`);
+    return this.commit({ ...room, slotId: toSlotId });
   }
 
   clear(): void {
@@ -140,17 +128,18 @@ export class Dungeon {
   // ---------- persistence ----------
 
   toSnapshot(): DungeonSnapshot {
-    return { version: 1, rooms: this.list() };
+    return { version: 2, rooms: this.list() };
   }
 
-  /** Replace the whole map. Validates every room; on error nothing changes. */
+  /** Replace the whole board. Validates every room; on error nothing changes. */
   loadSnapshot(snapshot: DungeonSnapshot): Result<void> {
-    if (snapshot.version !== 1) return fail(`Unsupported save version ${String(snapshot.version)}`);
-    const staged = new Dungeon(this.catalog);
+    if (snapshot?.version !== 2 || !Array.isArray(snapshot.rooms)) return fail('Unsupported or corrupt save');
+    const staged = new Dungeon(this.board, this.catalog);
     for (const r of snapshot.rooms) {
-      const def = this.catalog.get(r.definitionId);
-      if (!def) return fail(`Save references unknown room ${r.definitionId}`);
-      if (!staged.canPlace(def, r.position, r.rotation)) return fail(`Overlapping room ${r.instanceId} in save`);
+      if (!this.catalog.get(r.definitionId)) return fail(`Save references unknown room ${r.definitionId}`);
+      if (!Number.isInteger(r.rotation) || r.rotation < 0 || r.rotation > 5) return fail('Corrupt rotation in save');
+      const free = staged.checkSlotFree(r.slotId);
+      if (!free.ok) return fail(`Invalid save: ${free.error}`);
       staged.rooms.set(r.instanceId, r);
     }
     this.rooms = staged.rooms;
@@ -166,7 +155,7 @@ export class Dungeon {
     return () => this.listeners.delete(listener);
   }
 
-  private replace(room: RoomInstance): Result<RoomInstance> {
+  private commit(room: RoomInstance): Result<RoomInstance> {
     this.rooms.set(room.instanceId, room);
     this.emit();
     return ok(room);

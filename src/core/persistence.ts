@@ -1,6 +1,6 @@
 import type { DungeonSnapshot } from './types';
 
-const STORAGE_KEY = 'mage-puzzle-dungeon:map';
+const STORAGE_KEY = 'mage-puzzle-dungeon:board:v2';
 
 /** Save the map in this browser. Storage can be unavailable (private mode). */
 export function saveLocal(snapshot: DungeonSnapshot): boolean {

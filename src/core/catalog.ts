@@ -1,3 +1,4 @@
+import { SIDES } from './hex';
 import type { RoomDefinition } from './types';
 
 /** Lookup wrapper around the fixed room list; validates it on construction. */
@@ -9,20 +10,11 @@ export class RoomCatalog {
       if (!Number.isInteger(def.id) || def.id <= 0) {
         throw new Error(`Room "${def.name}": id must be a positive integer`);
       }
-      if (this.byId.has(def.id)) {
-        throw new Error(`Duplicate room id ${def.id}`);
-      }
-      if (def.footprint.length === 0) {
-        throw new Error(`Room ${def.id}: footprint is empty`);
-      }
-      const cells = new Set(def.footprint.map((c) => `${c.x},${c.z}`));
-      if (cells.size !== def.footprint.length) {
-        throw new Error(`Room ${def.id}: footprint has duplicate cells`);
-      }
-      for (const door of def.doors) {
-        if (!cells.has(`${door.cell.x},${door.cell.z}`)) {
-          throw new Error(`Room ${def.id}: door cell is not part of the footprint`);
-        }
+      if (this.byId.has(def.id)) throw new Error(`Duplicate room id ${def.id}`);
+      if (def.doors.some((d) => !SIDES.includes(d))) throw new Error(`Room ${def.id}: unknown door side`);
+      if (new Set(def.doors).size !== def.doors.length) throw new Error(`Room ${def.id}: duplicate door side`);
+      if (def.maxCopies !== undefined && (!Number.isInteger(def.maxCopies) || def.maxCopies < 1)) {
+        throw new Error(`Room ${def.id}: maxCopies must be a positive integer`);
       }
       this.byId.set(def.id, def);
     }

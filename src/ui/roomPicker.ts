@@ -95,6 +95,10 @@ export class RoomPicker {
 
   close(): void {
     if (this.el.hidden) return;
+    // Drop focus from the hidden search box so board shortcuts work again.
+    if (document.activeElement instanceof HTMLElement && this.el.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
     this.el.hidden = true;
     this.onClose();
   }

@@ -5,10 +5,10 @@ import { BOARD_SLOTS } from '../src/data/board';
 describe('board layout', () => {
   const board = new Board(BOARD_SLOTS);
 
-  it('has 30 slots in columns of 3-4-5-6-5-4-3', () => {
-    expect(board.all()).toHaveLength(30);
+  it('has 37 slots in columns of 4-5-6-7-6-5-4', () => {
+    expect(board.all()).toHaveLength(37);
     const perColumn = [-3, -2, -1, 0, 1, 2, 3].map((q) => board.all().filter((s) => s.coord.q === q).length);
-    expect(perColumn).toEqual([3, 4, 5, 6, 5, 4, 3]);
+    expect(perColumn).toEqual([4, 5, 6, 7, 6, 5, 4]);
   });
 
   it('has exactly one core, G4, in the middle column', () => {
@@ -19,9 +19,19 @@ describe('board layout', () => {
 
   it('labels the corners', () => {
     expect(board.get('A4')?.coord).toEqual({ q: 0, r: -6 });
-    expect(board.get('K4')?.coord).toEqual({ q: 0, r: 4 });
+    expect(board.get('M4')?.coord).toEqual({ q: 0, r: 6 });
     expect(board.get('D1')?.coord).toEqual({ q: -3, r: -3 });
-    expect(board.get('H7')?.coord).toEqual({ q: 3, r: 1 });
+    expect(board.get('J7')?.coord).toEqual({ q: 3, r: 3 });
+  });
+
+  it('is symmetric around the core', () => {
+    const keys = new Set(board.all().map((s) => `${s.coord.q},${s.coord.r}`));
+    for (const s of board.all()) {
+      expect(keys.has(`${-s.coord.q},${s.coord.r}`)).toBe(true);
+      expect(keys.has(`${s.coord.q},${-s.coord.r}`)).toBe(true);
+    }
+    // Every slot is within three steps of the core: a regular hexagon.
+    expect(board.all().every((s) => board.distance(s.id, 'G4') <= 3)).toBe(true);
   });
 
   it('finds neighbours on the board only', () => {

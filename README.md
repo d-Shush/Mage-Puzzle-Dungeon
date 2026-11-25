@@ -1,8 +1,9 @@
 # Mage Puzzle Dungeon
 
 A browser-based dungeon board for a D&D campaign, seen top-down in 2D. The
-board is a fixed hexagon of 30 hex slots (columns of 3-4-5-6-5-4-3). All slots
-start empty except the **prismatic core** (G4), which can never hold a room.
+board is a fixed, symmetric hexagon of 37 hex slots (columns of 4-5-6-7-6-5-4,
+three rings around the centre). All slots start empty except the **prismatic
+core** (G4) in the exact centre, which can never hold a room.
 Click an empty slot to place a room from the fixed catalogue.
 
 Each room is one of:
@@ -45,9 +46,9 @@ The build is a static site with relative paths and the font bundled, so
 
 ## Slot labels
 
-Letters are half-rows from the top (A = top point … K = bottom point), numbers
-are columns 1–7 from the left. A4 is the top slot, K4 the bottom, D1/F1/H1 the
-left edge, and G4 the core. Change `label()` in `src/data/board.ts` to rename.
+Letters are half-rows from the top (A = top point … M = bottom point), numbers
+are columns 1–7 from the left. A4 is the top slot, M4 the bottom, D1/F1/H1/J1
+the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to rename.
 
 ## Project structure
 

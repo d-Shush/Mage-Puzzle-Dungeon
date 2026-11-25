@@ -73,7 +73,7 @@ describe('Dungeon', () => {
     expect(targets).not.toContain('A4');
     expect(targets).not.toContain('G4');
     expect(targets).not.toContain('B5');
-    expect(targets).toHaveLength(30 - 3);
+    expect(targets).toHaveLength(37 - 3);
   });
 
   it('notifies subscribers on change', () => {

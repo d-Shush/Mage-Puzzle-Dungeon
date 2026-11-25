@@ -37,7 +37,8 @@ body {
 
 #app {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  /* Side panel: at least 400px, growing with wide screens up to 520px. */
+  grid-template-columns: 1fr clamp(400px, 32vw, 520px);
   height: 100%;
 }
 
@@ -669,9 +670,9 @@ button.danger:hover:not(:disabled) {
 .room-row-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Long names wrap onto a second line instead of being cut off. */
+  overflow-wrap: anywhere;
+  line-height: 1.25;
 }
 .room-where {
   font-size: 0.75rem;

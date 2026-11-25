@@ -20,7 +20,7 @@ export class Controller {
   private placingDefId: number | undefined;
   private pickingSlotId: string | undefined;
   private clearArmedUntil = 0;
-  private readonly panel: ControlPanel;
+  readonly panel: ControlPanel;
   private readonly picker: RoomPicker;
   private readonly editor: RoomEditor;
 

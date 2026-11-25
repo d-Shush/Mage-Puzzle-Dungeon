@@ -58,8 +58,8 @@ push to the default branch. One-time setup:
 3. The site appears at `https://<owner>.github.io/<repo>/` (also shown on the
    Pages settings page and in the workflow run).
 
-Each browser keeps its own rooms and board. Use **Export file / Import file**
-to move them between computers.
+Each browser keeps its own copy of the map. Connect **Cloud sync** on each
+device to share one map between them.
 
 ## Controls
 
@@ -75,12 +75,33 @@ to move them between computers.
   (or **P**) then click a slot, or drag the token. It can sit on any slot,
   and travels with a green room when that room moves.
 
-## Saving
+## Saving and cloud sync
 
 Rooms, the board and the party marker are saved automatically in this browser (local storage).
 **Export file** downloads everything as `mage-puzzle-dungeon.json`; **Import
 file** loads it back, e.g. on another computer. Export regularly: clearing
 browser data deletes the local copy.
+
+**Cloud sync** keeps the map the same on all your devices. It stores the save
+in a *secret GitHub Gist* on your account, so there is no server to run.
+
+1. Create a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new)
+   with **Permissions → Account → Gists: Read and write** (nothing else) and an expiry date.
+2. First device: **Cloud sync → Connect…**, paste the token, leave the ID empty.
+   This creates the cloud save from the current map and shows its **Cloud save ID**.
+3. Other devices: **Connect…**, paste the token and that ID. The cloud map
+   replaces whatever that device had.
+
+After that, every change uploads a moment later, and other devices pick it up
+within 30 seconds (or straight away with **Sync now**, or when the tab comes
+back into view). Changes made offline stay on the device and upload when the
+connection returns. If two devices changed the map at the same time, sync stops
+and asks which map to keep instead of overwriting either.
+
+The token stays in that browser's local storage and is only sent to
+api.github.com. Anyone with the cloud save ID can read the map, so don't share
+it with players. **Disconnect** removes the token from the device; the local map
+and the gist stay.
 
 ## Slot labels
 
@@ -106,6 +127,10 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
 │   ├── data/
 │   │   ├── board.ts         # ★ Board layout and slot labels
 │   │   └── rooms.ts         # Optional built-in rooms (used when nothing is saved)
+│   ├── sync/
+│   │   ├── remoteStore.ts   # Cloud store interface, errors, revision stamps
+│   │   ├── gistStore.ts     # GitHub Gist implementation (api.github.com)
+│   │   └── syncManager.ts   # Upload / download / conflict logic
 │   ├── render/
 │   │   └── boardView.ts     # SVG board: frame, slots, rooms, doors, prismatic core
 │   └── ui/
@@ -113,7 +138,8 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
 │       ├── roomEditor.ts    # Create / edit room dialog
 │       ├── exitPicker.ts    # Clickable hexagon + checkboxes for exits
 │       ├── roomPicker.ts    # Popover to choose a room for an empty slot
-│       ├── controlPanel.ts  # Side panel: selected room, room list, files
+│       ├── controlPanel.ts  # Side panel: selected room, party, room list, files
+│       ├── syncPanel.ts     # Cloud sync section and connect dialog
 │       └── dom.ts           # Small DOM helpers
 ├── tests/                   # Vitest unit tests for core/
 ├── public/                  # Static assets served as-is

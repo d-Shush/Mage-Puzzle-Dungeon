@@ -68,6 +68,8 @@ export interface SaveFile {
   readonly board: readonly RoomInstance[];
   /** Slot of the party marker; absent or null when it is not on the board. */
   readonly party?: string | null;
+  /** Unique stamp written by cloud sync each time this file is uploaded. */
+  readonly revision?: string;
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };

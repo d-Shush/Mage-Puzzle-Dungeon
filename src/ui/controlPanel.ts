@@ -31,6 +31,8 @@ export class ControlPanel {
   private readonly roomList = h('ul', { className: 'room-list' });
   private readonly roomCount = h('span', { className: 'muted' });
   private readonly partySection = h('section', { className: 'party' });
+  /** Filled by the cloud sync panel. */
+  readonly syncSlot = h('section', { className: 'sync' });
   private state: PanelState = { moving: false, movingParty: false };
 
   constructor(
@@ -54,7 +56,7 @@ export class ControlPanel {
       h('div', { className: 'section-head' }, h('h2', {}, 'Rooms ', this.roomCount), button('+ New room', () => actions.newRoom(), 'primary')),
       this.roomList,
       h('h2', { textContent: 'Save' }),
-      h('p', { className: 'hint', textContent: 'Rooms and the board are saved automatically in this browser.' }),
+      h('p', { className: 'hint', textContent: 'Rooms, the board and the party are saved automatically in this browser.' }),
       h(
         'div',
         { className: 'row' },
@@ -63,6 +65,7 @@ export class ControlPanel {
         button('Clear board', () => actions.clearBoard()),
         fileInput,
       ),
+      this.syncSlot,
       h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · P move party · Delete take off board · Esc cancel' }),
     );
     dungeon.subscribe(() => this.render());

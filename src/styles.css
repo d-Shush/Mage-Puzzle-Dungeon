@@ -348,6 +348,81 @@ body {
   margin: 6px 0 0;
 }
 
+/* ---------- cloud sync ---------- */
+
+.sync {
+  margin-top: 4px;
+}
+.sync-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+.sync-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35em;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sync-synced .sync-dot {
+  background: var(--green);
+}
+.sync-pending .sync-dot,
+.sync-working .sync-dot {
+  background: var(--gold);
+}
+.sync-offline .sync-dot {
+  background: var(--blue);
+}
+.sync-error .sync-dot,
+.sync-conflict .sync-dot {
+  background: var(--error);
+}
+.sync-error,
+.sync-conflict {
+  color: var(--error);
+}
+.cloud-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cloud-id {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  user-select: all;
+}
+.sync-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.sync-steps a {
+  color: var(--gold-bright);
+}
+.sync-warning {
+  margin: 0;
+  color: var(--gold-bright);
+  font-size: 0.85rem;
+}
+.sync-warning:empty {
+  display: none;
+}
+
 /* ---------- room picker ---------- */
 
 .picker {

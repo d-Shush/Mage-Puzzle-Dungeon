@@ -7,7 +7,10 @@ import { Dungeon } from './core/dungeon';
 import { BOARD_SLOTS } from './data/board';
 import { STARTER_ROOMS } from './data/rooms';
 import { BoardView } from './render/boardView';
+import { GistStore, parseGistId } from './sync/gistStore';
+import { SyncManager, browserStorage } from './sync/syncManager';
 import { Controller } from './ui/controller';
+import { SyncPanel } from './ui/syncPanel';
 
 const boardHost = document.querySelector<HTMLElement>('#board');
 const panelRoot = document.querySelector<HTMLElement>('#panel');
@@ -15,4 +18,25 @@ if (!boardHost || !panelRoot) throw new Error('index.html is missing #board or #
 
 const dungeon = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(STARTER_ROOMS));
 const view = new BoardView(boardHost, dungeon);
-new Controller(dungeon, view, panelRoot, boardHost);
+// The controller restores this browser's saved data first, so that loading
+// is not mistaken for a new change by the sync below.
+const controller = new Controller(dungeon, view, panelRoot, boardHost);
+
+const sync = new SyncManager(dungeon, {
+  storage: browserStorage,
+  openStore: (token, id) => GistStore.open(token, id),
+  createStore: (token, file) => GistStore.create(token, file),
+  parseId: parseGistId,
+});
+new SyncPanel(controller.panel.syncSlot, sync, dungeon);
+
+// Pick up changes from other devices: on start, every 30 s while visible,
+// and whenever the tab comes back into view or the connection returns.
+const POLL_MS = 30_000;
+const pullIfVisible = () => {
+  if (document.visibilityState === 'visible') void sync.pull();
+};
+void sync.syncNow();
+setInterval(pullIfVisible, POLL_MS);
+document.addEventListener('visibilitychange', pullIfVisible);
+window.addEventListener('online', () => void sync.syncNow());

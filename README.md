@@ -45,6 +45,22 @@ Open the URL Vite prints (default http://localhost:5173).
 The build is a static site with relative paths and the font bundled, so
 `dist/` works offline and can be hosted anywhere (GitHub Pages, Netlify…).
 
+## Publishing on GitHub Pages
+
+`.github/workflows/deploy-pages.yml` builds and publishes the app on every
+push to the default branch. One-time setup:
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+   (Pages on a private repository needs a paid GitHub plan; otherwise make
+   the repository public.)
+2. Push to the default branch, or run **Actions → Deploy to GitHub Pages →
+   Run workflow**.
+3. The site appears at `https://<owner>.github.io/<repo>/` (also shown on the
+   Pages settings page and in the workflow run).
+
+Each browser keeps its own rooms and board. Use **Export file / Import file**
+to move them between computers.
+
 ## Controls
 
 - **+ New room** creates a room. **Edit** next to a room changes or deletes it

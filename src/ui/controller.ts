@@ -14,6 +14,8 @@ import { RoomPicker } from './roomPicker';
 export class Controller {
   private selectedId: string | undefined;
   private moving = false;
+  /** Waiting for a click on the slot to move the party marker to. */
+  private movingParty = false;
   /** Room chosen in the room list, waiting for a click on an empty slot. */
   private placingDefId: number | undefined;
   private pickingSlotId: string | undefined;
@@ -41,6 +43,8 @@ export class Controller {
       exportFile: () => this.exportFile(),
       importFile: (file) => void this.importFile(file),
       clearBoard: () => this.clearBoard(),
+      toggleMoveParty: () => this.toggleMoveParty(),
+      removeParty: () => this.report(this.dungeon.setParty(undefined), () => 'Party marker removed'),
     });
 
     const saved = loadLocal();
@@ -50,6 +54,10 @@ export class Controller {
     }
 
     view.setSlotClickHandler((slotId, anchor) => this.onSlotClick(slotId, anchor));
+    view.setPartyHandlers({
+      onDrop: (slotId) => this.moveParty(slotId),
+      onClick: () => this.toggleMoveParty(),
+    });
     window.addEventListener('keydown', (e) => this.onKey(e));
     dungeon.subscribe(() => {
       if (this.selectedId && !dungeon.get(this.selectedId)) this.select(undefined);
@@ -65,6 +73,10 @@ export class Controller {
   // ---------- board clicks ----------
 
   private onSlotClick(slotId: string, anchor: Element): void {
+    if (this.movingParty) {
+      this.moveParty(slotId);
+      return;
+    }
     if (this.moving && this.selectedId) {
       if (this.dungeon.moveTargets(this.selectedId).includes(slotId)) {
         const res = this.report(this.dungeon.move(this.selectedId, slotId), (r) => `Moved to ${r.slotId}`);
@@ -125,6 +137,26 @@ export class Controller {
     else this.sync();
   }
 
+  // ---------- party ----------
+
+  private moveParty(slotId: string): void {
+    this.movingParty = false;
+    const moved = this.dungeon.party !== undefined;
+    this.report(this.dungeon.setParty(slotId), () => moved ? `Party moved to ${slotId}` : `Party placed in ${slotId}`);
+    this.sync();
+  }
+
+  private toggleMoveParty(): void {
+    this.movingParty = !this.movingParty;
+    if (this.movingParty) {
+      this.picker.close();
+      this.moving = false;
+      this.placingDefId = undefined;
+      this.panel.setStatus('Click a slot to move the party there. Esc cancels.');
+    } else this.panel.setStatus('');
+    this.sync();
+  }
+
   // ---------- room list & editor ----------
 
   /** Create a room (optionally straight into `placeInSlot`) or edit room `id`. */
@@ -165,6 +197,7 @@ export class Controller {
   private select(id: string | undefined): void {
     this.selectedId = id;
     this.moving = false;
+    this.movingParty = false;
     this.sync();
   }
 
@@ -184,6 +217,7 @@ export class Controller {
       if (!res.ok) return void this.report(res);
     }
     this.moving = !this.moving;
+    this.movingParty = false;
     this.panel.setStatus(this.moving ? 'Click a highlighted slot to move the room there' : '');
     this.sync();
   }
@@ -235,8 +269,10 @@ export class Controller {
   private onKey(e: KeyboardEvent): void {
     const t = e.target as HTMLElement;
     if (this.editor.isOpen || this.picker.isOpen || t.closest?.('input, textarea')) return;
+    if (e.key === 'p' || e.key === 'P') return this.toggleMoveParty();
     if (e.key === 'Escape') {
-      if (this.moving) this.toggleMove();
+      if (this.movingParty) this.toggleMoveParty();
+      else if (this.moving) this.toggleMove();
       else if (this.placingDefId !== undefined) {
         this.placingDefId = undefined;
         this.panel.setStatus('');
@@ -255,10 +291,11 @@ export class Controller {
 
   private sync(): void {
     let targets: string[] | undefined;
-    if (this.moving && this.selectedId) targets = this.dungeon.moveTargets(this.selectedId);
+    if (this.movingParty) targets = this.dungeon.board.all().map((s) => s.id);
+    else if (this.moving && this.selectedId) targets = this.dungeon.moveTargets(this.selectedId);
     else if (this.placingDefId !== undefined) targets = this.dungeon.board.all().filter((s) => this.dungeon.checkSlotFree(s.id).ok).map((s) => s.id);
     this.view.setState({ selectedId: this.selectedId, moveTargets: targets, pickingSlotId: this.pickingSlotId });
-    this.panel?.setState({ selectedId: this.selectedId, moving: this.moving });
+    this.panel?.setState({ selectedId: this.selectedId, moving: this.moving, movingParty: this.movingParty });
   }
 
   private report<T>(res: Result<T>, success?: (value: T) => string): Result<T> {

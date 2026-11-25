@@ -35,3 +35,21 @@ describe('save files', () => {
     expect(d.catalog.all().map((r) => r.name)).toEqual(['Keep me']);
   });
 });
+
+describe('party in save files', () => {
+  it('saves and restores the party marker', () => {
+    const a = make();
+    a.setParty('D3');
+    const b = make();
+    expect(applySaveFile(b, JSON.parse(JSON.stringify(toSaveFile(a)))).ok).toBe(true);
+    expect(b.party).toBe('D3');
+  });
+
+  it('accepts files without a party and rejects unknown slots', () => {
+    const d = make();
+    const base = { app: 'mage-puzzle-dungeon', version: 3, rooms: [], board: [] };
+    expect(applySaveFile(d, base).ok).toBe(true);
+    expect(d.party).toBeUndefined();
+    expect(applySaveFile(d, { ...base, party: 'Z9' }).ok).toBe(false);
+  });
+});

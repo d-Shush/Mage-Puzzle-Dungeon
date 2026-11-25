@@ -5,7 +5,13 @@ import { fail, ok, type Result, type SaveFile } from './types';
 const STORAGE_KEY = 'mage-puzzle-dungeon:v3';
 
 export function toSaveFile(dungeon: Dungeon): SaveFile {
-  return { app: 'mage-puzzle-dungeon', version: 3, rooms: dungeon.catalog.all(), board: dungeon.list() };
+  return {
+    app: 'mage-puzzle-dungeon',
+    version: 3,
+    rooms: dungeon.catalog.all(),
+    board: dungeon.list(),
+    party: dungeon.party ?? null,
+  };
 }
 
 /**
@@ -21,9 +27,12 @@ export function applySaveFile(dungeon: Dungeon, data: unknown): Result<SaveFile>
   const staged = new Dungeon(dungeon.board, new RoomCatalog([...rooms.value.values()]), false);
   const board = staged.check(file.board ?? []);
   if (!board.ok) return fail(board.error);
+  const party = file.party ?? undefined;
+  if (party !== undefined && (typeof party !== 'string' || !dungeon.board.get(party))) return fail('Party marker is on an unknown slot');
 
   dungeon.catalog.replaceAll([...rooms.value.values()]);
   dungeon.load(file.board ?? []);
+  dungeon.setParty(party);
   return ok(toSaveFile(dungeon));
 }
 

@@ -14,11 +14,14 @@ export interface PanelActions {
   exportFile(): void;
   importFile(file: File): void;
   clearBoard(): void;
+  toggleMoveParty(): void;
+  removeParty(): void;
 }
 
 export interface PanelState {
   readonly selectedId?: string;
   readonly moving: boolean;
+  readonly movingParty: boolean;
 }
 
 /** Side panel: selected room, the room list, and file actions. */
@@ -27,7 +30,8 @@ export class ControlPanel {
   private readonly selection = h('section', { className: 'selection' });
   private readonly roomList = h('ul', { className: 'room-list' });
   private readonly roomCount = h('span', { className: 'muted' });
-  private state: PanelState = { moving: false };
+  private readonly partySection = h('section', { className: 'party' });
+  private state: PanelState = { moving: false, movingParty: false };
 
   constructor(
     root: HTMLElement,
@@ -46,6 +50,7 @@ export class ControlPanel {
       h('p', { className: 'hint', textContent: 'Click an empty slot to place a room. Click a room to select it.' }),
       this.status,
       this.selection,
+      this.partySection,
       h('div', { className: 'section-head' }, h('h2', {}, 'Rooms ', this.roomCount), button('+ New room', () => actions.newRoom(), 'primary')),
       this.roomList,
       h('h2', { textContent: 'Save' }),
@@ -58,7 +63,7 @@ export class ControlPanel {
         button('Clear board', () => actions.clearBoard()),
         fileInput,
       ),
-      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · Delete take off board · Esc cancel' }),
+      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · P move party · Delete take off board · Esc cancel' }),
     );
     dungeon.subscribe(() => this.render());
     this.render();
@@ -76,7 +81,33 @@ export class ControlPanel {
 
   private render(): void {
     this.renderSelection();
+    this.renderParty();
     this.renderRooms();
+  }
+
+  private renderParty(): void {
+    const slotId = this.dungeon.party;
+    const room = slotId ? this.dungeon.roomAt(slotId) : undefined;
+    const slot = slotId ? this.dungeon.board.get(slotId) : undefined;
+    let where = 'Not on the map';
+    if (slotId && room) where = `In ${slotId}, ${this.dungeon.definitionOf(room).name}`;
+    else if (slot?.kind === 'core') where = `At the prismatic core (${slotId})`;
+    else if (slotId) where = `In ${slotId} (no room there yet)`;
+
+    const move = button(
+      this.state.movingParty ? 'Cancel' : slotId ? 'Move party…' : 'Place party…',
+      () => this.actions.toggleMoveParty(),
+      this.state.movingParty ? 'active' : '',
+    );
+    const buttons = [move];
+    if (slotId && !this.state.movingParty) buttons.push(button('Remove marker', () => this.actions.removeParty()));
+
+    this.partySection.replaceChildren(
+      h('div', { className: 'party-head' }, h('span', { className: 'party-dot', ariaHidden: 'true' }), h('h2', { textContent: 'Party' })),
+      h('p', { className: 'party-where', textContent: where }),
+      h('div', { className: 'row' }, ...buttons),
+      ...(slotId ? [h('p', { className: 'hint', textContent: 'You can also drag the marker on the map.' })] : []),
+    );
   }
 
   private typeBadge(def: RoomDefinition): HTMLElement {

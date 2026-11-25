@@ -25,6 +25,17 @@ export interface BoardViewState {
 
 export type SlotClickHandler = (slotId: string, anchor: Element) => void;
 
+export interface PartyHandlers {
+  /** The marker was dragged and dropped on a slot. */
+  onDrop(slotId: string): void;
+  /** The marker was clicked (or Enter pressed) without dragging. */
+  onClick(): void;
+}
+
+/** Party token offset from the slot centre: upper right, clear of the room number and doors. */
+const PARTY_OFFSET = { x: DRAW_SIZE * 0.42, y: -DRAW_SIZE * 0.55 };
+const PARTY_RADIUS = 11;
+
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number> = {},
@@ -61,6 +72,9 @@ export class BoardView {
   private readonly angles = new Map<string, { rotation: number; angle: number }>();
   private state: BoardViewState = {};
   private onSlotClick: SlotClickHandler = () => {};
+  private party: PartyHandlers = { onDrop: () => {}, onClick: () => {} };
+  private readonly partyToken: SVGGElement;
+  private dragging = false;
 
   constructor(
     container: HTMLElement,
@@ -85,7 +99,8 @@ export class BoardView {
       this.slots.set(slot.id, els);
       slotLayer.append(els.group);
     }
-    this.element.append(slotLayer);
+    this.partyToken = this.buildPartyToken();
+    this.element.append(slotLayer, svg('g', { class: 'party-layer' }, this.partyToken));
     container.append(this.element);
 
     dungeon.subscribe(() => this.update());
@@ -94,6 +109,10 @@ export class BoardView {
 
   setSlotClickHandler(handler: SlotClickHandler): void {
     this.onSlotClick = handler;
+  }
+
+  setPartyHandlers(handlers: PartyHandlers): void {
+    this.party = handlers;
   }
 
   setState(state: BoardViewState): void {
@@ -123,6 +142,7 @@ export class BoardView {
       c.toggle('is-target', targets.has(slot.id));
       c.toggle('is-dimmed', moving && !targets.has(slot.id) && room?.instanceId !== this.state.selectedId);
       c.toggle('is-picking', slot.id === this.state.pickingSlotId);
+      c.toggle('is-party', slot.id === this.dungeon.party);
 
       if (room) {
         live.add(room.instanceId);
@@ -133,6 +153,97 @@ export class BoardView {
       }
     }
     for (const id of this.angles.keys()) if (!live.has(id)) this.angles.delete(id);
+    this.updateParty();
+  }
+
+  private updateParty(): void {
+    const slot = this.dungeon.party ? this.dungeon.board.get(this.dungeon.party) : undefined;
+    this.partyToken.style.display = slot ? '' : 'none';
+    if (!slot || this.dragging) return;
+    const c = hexToPixel(slot.coord, SIZE);
+    this.placeToken(c.x + PARTY_OFFSET.x, c.y + PARTY_OFFSET.y);
+    this.partyToken.setAttribute('aria-label', `Party marker in ${slot.id}. Drag it, or press Enter to move it.`);
+    this.partyToken.querySelector('title')!.textContent = `The party is in ${slot.id} — drag to move`;
+  }
+
+  private placeToken(x: number, y: number): void {
+    this.partyToken.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  /** SVG user coordinates of a pointer event. */
+  private toSvgPoint(e: PointerEvent): { x: number; y: number } {
+    const m = this.element.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  /** Slot whose centre is nearest to a point, if the point is on that slot. */
+  private slotAt(x: number, y: number): string | undefined {
+    let best: { id: string; d: number } | undefined;
+    for (const slot of this.dungeon.board.all()) {
+      const c = hexToPixel(slot.coord, SIZE);
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (!best || d < best.d) best = { id: slot.id, d };
+    }
+    return best && best.d <= SIZE * 0.9 ? best.id : undefined;
+  }
+
+  private buildPartyToken(): SVGGElement {
+    const token = svg(
+      'g',
+      { class: 'party-token', tabindex: 0, role: 'button' },
+      svg('title'),
+      svg('circle', { class: 'party-pulse', r: PARTY_RADIUS }),
+      svg('circle', { class: 'party-disc', r: PARTY_RADIUS }),
+      svg('circle', { class: 'party-figure', cx: 0, cy: -3.6, r: 2.8 }),
+      svg('path', { class: 'party-figure', d: 'M-5,5.5 Q-5,-0.2 0,-0.2 Q5,-0.2 5,5.5 Z' }),
+    );
+
+    let start: { x: number; y: number; px: number; py: number } | undefined;
+    token.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const p = this.toSvgPoint(e);
+      start = { x: e.clientX, y: e.clientY, px: p.x, py: p.y };
+      token.setPointerCapture(e.pointerId);
+    });
+    token.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      if (!this.dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
+      this.dragging = true;
+      token.classList.add('is-dragging');
+      const p = this.toSvgPoint(e);
+      this.placeToken(p.x, p.y);
+      const over = this.slotAt(p.x, p.y);
+      for (const [id, els] of this.slots) els.group.classList.toggle('is-party-drop', id === over);
+    });
+    const end = (e: PointerEvent, cancelled: boolean) => {
+      if (!start) return;
+      const wasDragging = this.dragging;
+      start = undefined;
+      this.dragging = false;
+      token.classList.remove('is-dragging');
+      for (const els of this.slots.values()) els.group.classList.remove('is-party-drop');
+      if (!wasDragging) {
+        if (!cancelled) this.party.onClick();
+        return;
+      }
+      const p = this.toSvgPoint(e);
+      const target = cancelled ? undefined : this.slotAt(p.x, p.y);
+      if (target) this.party.onDrop(target);
+      this.updateParty(); // snap to the (possibly unchanged) slot
+    };
+    token.addEventListener('pointerup', (e) => end(e, false));
+    token.addEventListener('pointercancel', (e) => end(e, true));
+    token.addEventListener('click', (e) => e.stopPropagation());
+    token.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.party.onClick();
+      }
+    });
+    return token;
   }
 
   private renderRoom(els: SlotElements, room: RoomInstance, slot: SlotDefinition): void {
@@ -296,6 +407,7 @@ export class BoardView {
     }
 
     group.append(
+      svg('polygon', { class: 'party-ring', points: points(hexCorners(DRAW_SIZE + 3)) }),
       svg('polygon', { class: 'slot-rim', points: corners }),
       svg('polygon', { class: 'slot-rim-inner', points: points(hexCorners(DRAW_SIZE - 5)) }),
     );

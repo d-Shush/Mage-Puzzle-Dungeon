@@ -16,6 +16,8 @@ export type DungeonListener = (rooms: readonly RoomInstance[]) => void;
  */
 export class Dungeon {
   private rooms = new Map<string, RoomInstance>();
+  /** Slot the party marker is on, or undefined when it is not on the map. */
+  private partySlot: string | undefined;
   private listeners = new Set<DungeonListener>();
   private nextId = 1;
 
@@ -82,7 +84,23 @@ export class Dungeon {
     return candidates.filter((s) => this.checkSlotFree(s.id).ok).map((s) => s.id);
   }
 
+  /** Slot where the party is, if the marker is on the board. */
+  get party(): string | undefined {
+    return this.partySlot;
+  }
+
   // ---------- mutations ----------
+
+  /**
+   * Put the party marker on a slot, or take it off the board (undefined).
+   * Any slot works, including empty ones and the core.
+   */
+  setParty(slotId: string | undefined): Result<string | undefined> {
+    if (slotId !== undefined && !this.board.get(slotId)) return fail(`No slot ${slotId}`);
+    this.partySlot = slotId;
+    this.emit();
+    return ok(slotId);
+  }
 
   /** Place a catalogue room (by number) into an empty slot. */
   place(slotId: string, definitionId: number): Result<RoomInstance> {
@@ -121,6 +139,8 @@ export class Dungeon {
     const free = this.checkSlotFree(toSlotId);
     if (!free.ok) return fail(free.error);
     if (!this.moveTargets(instanceId).includes(toSlotId)) return fail(`${def.name} can only move to an adjacent slot`);
+    // A party inside the room travels with it.
+    if (this.partySlot === room.slotId) this.partySlot = toSlotId;
     return this.commit({ ...room, slotId: toSlotId });
   }
 

@@ -66,6 +66,8 @@ export interface SaveFile {
   readonly version: 3;
   readonly rooms: readonly RoomDefinition[];
   readonly board: readonly RoomInstance[];
+  /** Slot of the party marker; absent or null when it is not on the board. */
+  readonly party?: string | null;
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };

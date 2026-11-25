@@ -55,10 +55,13 @@ The build is a static site with relative paths and the font bundled, so
   placed yet, then click an empty slot to place it.
 - **Click a room on the board** to select it. Then: **R** / **Shift+R** rotate,
   **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
+- **Party marker** (pink token): **Place party…** / **Move party…** in the panel
+  (or **P**) then click a slot, or drag the token. It can sit on any slot,
+  and travels with a green room when that room moves.
 
 ## Saving
 
-Rooms and the board are saved automatically in this browser (local storage).
+Rooms, the board and the party marker are saved automatically in this browser (local storage).
 **Export file** downloads everything as `mage-puzzle-dungeon.json`; **Import
 file** loads it back, e.g. on another computer. Export regularly: clearing
 browser data deletes the local copy.

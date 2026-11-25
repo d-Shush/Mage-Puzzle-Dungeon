@@ -103,3 +103,35 @@ describe('Dungeon', () => {
     expect(dungeon.list()).toEqual(before);
   });
 });
+
+describe('party marker', () => {
+  const make = () => new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(TEST_ROOMS));
+
+  it('starts off the map and can go on any slot, including empty ones and the core', () => {
+    const d = make();
+    expect(d.party).toBeUndefined();
+    expect(d.setParty('G4').ok).toBe(true);
+    expect(d.setParty('A4').ok).toBe(true);
+    expect(d.party).toBe('A4');
+    expect(d.setParty('Z9').ok).toBe(false);
+    expect(d.party).toBe('A4');
+    expect(d.setParty(undefined).ok).toBe(true);
+    expect(d.party).toBeUndefined();
+  });
+
+  it('travels with a green room the party is in', () => {
+    const d = make();
+    const green = unwrap(d.place('B5', 3));
+    d.setParty('B5');
+    unwrap(d.move(green.instanceId, 'M4'));
+    expect(d.party).toBe('M4');
+  });
+
+  it('stays put when a different room moves', () => {
+    const d = make();
+    const green = unwrap(d.place('B5', 3));
+    d.setParty('A4');
+    unwrap(d.move(green.instanceId, 'M4'));
+    expect(d.party).toBe('A4');
+  });
+});

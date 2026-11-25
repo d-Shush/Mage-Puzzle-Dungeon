@@ -7,6 +7,7 @@
   --gold: #d9a441;
   --gold-bright: #ffe7a3;
   --error: #ff7a7a;
+  --party: #ff7be5;
   --red: #ff7d88;
   --blue: #7cb6ff;
   --green: #7fe0a0;
@@ -234,6 +235,117 @@ body {
 }
 .slot.is-dimmed {
   opacity: 0.45;
+}
+
+/* ---------- party marker ---------- */
+
+.party-ring {
+  fill: none;
+  stroke: var(--party);
+  stroke-width: 3;
+  opacity: 0;
+  pointer-events: none;
+}
+.slot.is-party .party-ring {
+  opacity: 1;
+  filter: url(#glow);
+  animation: party-pulse 2.4s ease-in-out infinite;
+}
+.slot.is-party-drop .party-ring {
+  opacity: 1;
+  stroke-dasharray: 7 5;
+  animation: none;
+}
+@keyframes party-pulse {
+  50% {
+    stroke-opacity: 0.35;
+  }
+}
+.party-token {
+  cursor: grab;
+  outline: none;
+  transition: transform 0.35s cubic-bezier(0.3, 1.3, 0.5, 1);
+  touch-action: none;
+}
+.party-token.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+.party-disc {
+  fill: var(--party);
+  stroke: #fff;
+  stroke-width: 2;
+  filter: url(#glow);
+}
+.party-figure {
+  fill: #2a0b26;
+}
+.party-pulse {
+  fill: none;
+  stroke: var(--party);
+  stroke-width: 2;
+  transform-origin: 0 0;
+  animation: party-ping 2.4s ease-out infinite;
+}
+.party-token.is-dragging .party-pulse {
+  animation: none;
+  opacity: 0;
+}
+.party-token:hover .party-disc,
+.party-token:focus-visible .party-disc {
+  stroke: var(--gold-bright);
+  stroke-width: 3;
+}
+@keyframes party-ping {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot.is-party .party-ring,
+  .party-pulse {
+    animation: none;
+  }
+  .party-pulse {
+    opacity: 0;
+  }
+  .party-token,
+  .room-doors {
+    transition: none;
+  }
+}
+
+.party {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.party-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.party-head h2 {
+  margin: 0;
+}
+.party-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--party);
+  box-shadow: 0 0 8px var(--party);
+}
+.party-where {
+  margin: 6px 0 8px;
+}
+.party .hint {
+  margin: 6px 0 0;
 }
 
 /* ---------- room picker ---------- */

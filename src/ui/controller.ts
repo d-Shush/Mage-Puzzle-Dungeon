@@ -30,12 +30,7 @@ export class Controller {
       deselect: () => this.select(undefined),
       save: () => this.panel.setStatus(saveLocal(dungeon.toSnapshot()) ? 'Board saved in this browser' : 'Could not save', false),
       load: () => this.load(),
-      clear: () => {
-        if (confirm('Remove all rooms from the board?')) {
-          dungeon.clear();
-          this.select(undefined);
-        }
-      },
+      clear: () => this.clear(),
     });
 
     view.setSlotClickHandler((slotId, anchor) => this.onSlotClick(slotId, anchor));
@@ -122,6 +117,21 @@ export class Controller {
 
   private remove(): void {
     if (this.selectedId) this.report(this.dungeon.remove(this.selectedId), () => 'Room removed');
+  }
+
+  /** Two-step clear: the first press arms it, a second press within 4 s clears. */
+  private clearArmedUntil = 0;
+  private clear(): void {
+    if (this.dungeon.list().length === 0) return this.panel.setStatus('The board is already empty');
+    if (Date.now() > this.clearArmedUntil) {
+      this.clearArmedUntil = Date.now() + 4000;
+      this.panel.setStatus('Press Clear again to remove every room', true);
+      return;
+    }
+    this.clearArmedUntil = 0;
+    this.dungeon.clear();
+    this.select(undefined);
+    this.panel.setStatus('Board cleared');
   }
 
   private load(): void {

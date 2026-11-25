@@ -2,7 +2,7 @@ import type { Dungeon } from '../core/dungeon';
 import { sideAngle } from '../core/grid';
 import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
 import type { GridCoord, RoomInstance, SlotDefinition } from '../core/types';
-import { roomTileGroup } from './roomTile';
+import { roomImageGroup, roomTileGroup } from './roomTile';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -89,6 +89,10 @@ function wrap(text: string, width: number, maxLines: number): string[] {
 interface SlotElements {
   group: SVGGElement;
   orb: SVGRectElement;
+  /** Holds the room's picture, if it has one. */
+  image: SVGGElement;
+  /** The picture currently drawn in `image` ('' for none). */
+  imageHref: string;
   doors: SVGGElement;
   name: SVGTextElement;
   title: SVGTitleElement;
@@ -208,6 +212,12 @@ export class BoardView {
     const rules = ROOM_TYPES[def.type];
 
     els.orb.setAttribute('fill', def.type === 'prismatic' ? 'url(#prism)' : `url(#orb-${def.type})`);
+    const image = def.image ?? '';
+    if (els.imageHref !== image) {
+      els.imageHref = image;
+      els.image.replaceChildren(...(image ? [roomImageGroup(image, ORB, CORNER - 2, 4)] : []));
+    }
+    els.group.classList.toggle('has-image', !!image);
     const lines = wrap(def.name, 9, 2);
     els.name.replaceChildren(
       ...lines.map((line, i) => svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)),
@@ -247,7 +257,7 @@ export class BoardView {
       this.ghost.dataset.key = '';
       return;
     }
-    const key = `${slot.id}:${def.id}:${def.type}:${def.doors.join(',')}:${def.name}`;
+    const key = `${slot.id}:${def.id}:${def.type}:${def.doors.join(',')}:${def.name}:${def.image?.length ?? 0}:${def.image?.slice(-32) ?? ''}`;
     if (this.ghost.dataset.key === key) return;
     this.ghost.dataset.key = key;
     const { x, y } = toPixel(slot.coord);
@@ -255,6 +265,7 @@ export class BoardView {
     const lines = wrap(def.name, 9, 2);
     const name = svg('text', { class: 'room-name' });
     lines.forEach((line, i) => name.append(svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)));
+    this.ghost.classList.toggle('has-image', !!def.image);
     this.ghost.replaceChildren(roomTileGroup(def, 0, ORB), name);
   }
 
@@ -443,8 +454,9 @@ export class BoardView {
 
     const orb = square('room-orb', ORB, CORNER - 2);
     const doors = svg('g', { class: 'room-doors' });
+    const image = svg('g', { class: 'room-image' });
     const name = svg('text', { class: 'room-name' });
-    group.append(svg('g', { class: 'slot-room' }, orb, square('orb-shine', ORB, CORNER - 2), doors, name));
+    group.append(svg('g', { class: 'slot-room' }, orb, square('orb-shine', ORB, CORNER - 2), image, doors, name));
 
     group.append(square('slot-rim', R), square('slot-rim-inner', R - 4, CORNER - 2));
     group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
@@ -461,7 +473,7 @@ export class BoardView {
       }
     });
 
-    return { group, orb, doors, name, title };
+    return { group, orb, image, imageHref: '', doors, name, title };
   }
 
   /** A glowing gold bar on one side of a room tile. */

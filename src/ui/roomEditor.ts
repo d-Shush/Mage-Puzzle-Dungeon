@@ -3,6 +3,7 @@ import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
 import type { RoomDefinition, RoomInput, RoomType, Result } from '../core/types';
 import { button, h } from './dom';
 import { ExitPicker } from './exitPicker';
+import { loadRoomImage } from './imageFile';
 
 export interface EditorOptions {
   /** Existing room to edit; omit to create a new one. */
@@ -21,7 +22,7 @@ export interface EditorOptions {
  * (red / blue / green) and exits.
  */
 export class RoomEditor {
-  private readonly backdrop = h('div', { className: 'modal-backdrop', hidden: true });
+  private readonly backdrop = h('div', { className: 'modal-backdrop modal-top', hidden: true });
   private readonly dialog = h('form', { className: 'modal', noValidate: true });
   private readonly exits = new ExitPicker('room-exit');
   private returnFocus: HTMLElement | null = null;
@@ -55,6 +56,38 @@ export class RoomEditor {
     const description = h('textarea', { id: 'room-description', rows: 5, maxLength: DESCRIPTION_MAX, value: room?.description ?? '' });
     description.placeholder = 'What the players see when they enter…';
     const error = h('p', { className: 'form-error', role: 'alert' });
+
+    // Optional picture, drawn on the map instead of the coloured square.
+    let image: string | undefined = room?.image;
+    const imagePreview = h('div', { className: 'image-preview' });
+    const imageFile = h('input', { type: 'file', accept: 'image/*', hidden: true, id: 'room-image' });
+    const chooseImage = button('', () => imageFile.click());
+    const removeImage = button('Remove image', () => {
+      image = undefined;
+      renderImage();
+    }, 'danger');
+    const renderImage = () => {
+      imagePreview.replaceChildren(
+        image ? h('img', { src: image, alt: 'Room image' }) : h('span', { className: 'muted', textContent: 'No image' }),
+      );
+      imagePreview.classList.toggle('is-empty', !image);
+      chooseImage.textContent = image ? 'Change image…' : 'Choose image…';
+      removeImage.hidden = !image;
+    };
+    imageFile.addEventListener('change', async () => {
+      const file = imageFile.files?.[0];
+      imageFile.value = '';
+      if (!file) return;
+      chooseImage.disabled = true;
+      const res = await loadRoomImage(file);
+      chooseImage.disabled = false;
+      if (res.ok) {
+        image = res.value;
+        error.textContent = '';
+      } else error.textContent = res.error;
+      renderImage();
+    });
+    renderImage();
 
     let type: RoomType = room?.type ?? 'red';
     const typeCards = ROOM_TYPE_ORDER.map((t) => {
@@ -111,7 +144,7 @@ export class RoomEditor {
 
     this.dialog.onsubmit = (e) => {
       e.preventDefault();
-      const res = opts.onSave({ name: name.value, description: description.value, type, doors: this.exits.value });
+      const res = opts.onSave({ name: name.value, description: description.value, type, doors: this.exits.value, image });
       if (res.ok) this.close();
       else {
         error.textContent = res.error;
@@ -128,6 +161,22 @@ export class RoomEditor {
         { className: 'field' },
         h('label', { htmlFor: description.id, textContent: 'Description for players' }),
         description,
+      ),
+      h(
+        'fieldset',
+        { className: 'field' },
+        h('legend', { textContent: 'Image (optional)' }),
+        h(
+          'div',
+          { className: 'image-field' },
+          imagePreview,
+          h(
+            'div',
+            { className: 'image-field-side' },
+            h('p', { className: 'hint', textContent: 'Shown on the map instead of the coloured square, and in the room journal. Cropped to a square.' }),
+            h('div', { className: 'row' }, chooseImage, removeImage, imageFile),
+          ),
+        ),
       ),
       h('fieldset', { className: 'field' }, h('legend', { textContent: 'Room type' }), h('div', { className: 'type-cards' }, ...typeCards)),
       h(

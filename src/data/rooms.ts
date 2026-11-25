@@ -3,7 +3,7 @@ import type { SaveFile } from '../core/types';
 /**
  * What a browser starts with when it has no saved data: the two prismatic
  * rooms from the reference art, already in their slots above and below the
- * grid. Everything else is created in the app ("New room").
+ * grid. Everything else is created in the app ("+ Add room").
  *
  * To ship more built-in rooms, export a file from the app and paste its
  * "rooms" and "board" lists here.

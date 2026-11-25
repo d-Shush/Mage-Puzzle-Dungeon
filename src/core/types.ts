@@ -40,6 +40,8 @@ export interface RoomInput {
   readonly type: RoomType;
   /** Edges with an exit, before rotation. */
   readonly doors: readonly Side[];
+  /** Optional picture drawn instead of the coloured tile: a small data: URL (PNG, JPEG, WebP or GIF). */
+  readonly image?: string;
 }
 
 /** A room in the catalogue. Each room can be on the board once. */

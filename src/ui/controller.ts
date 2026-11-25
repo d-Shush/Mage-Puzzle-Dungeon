@@ -4,6 +4,8 @@ import { starterSave } from '../data/rooms';
 import { fail, ok, type Result, type RoomInput } from '../core/types';
 import type { BoardView } from '../render/boardView';
 import { ControlPanel } from './controlPanel';
+import { PlaceRoomDialog } from './placeRoomDialog';
+import { RoomJournal } from './roomJournal';
 import { RoomEditor } from './roomEditor';
 import { RoomPicker } from './roomPicker';
 
@@ -17,7 +19,7 @@ export class Controller {
   private moving = false;
   /** Waiting for a click on the slot to move the party marker to. */
   private movingParty = false;
-  /** Room chosen in the room list, waiting for a click on an empty slot. */
+  /** Room chosen with "Place room", waiting for a click on an empty slot. */
   private placingDefId: number | undefined;
   private pickingSlotId: string | undefined;
   /** Room shown see-through in a slot before it is placed. */
@@ -26,6 +28,8 @@ export class Controller {
   readonly panel: ControlPanel;
   private readonly picker: RoomPicker;
   private readonly editor: RoomEditor;
+  private readonly journal: RoomJournal;
+  private readonly placeDialog: PlaceRoomDialog;
 
   constructor(
     private readonly dungeon: Dungeon,
@@ -35,6 +39,15 @@ export class Controller {
   ) {
     this.picker = new RoomPicker(pickerHost);
     this.editor = new RoomEditor(document.body);
+    this.journal = new RoomJournal(document.body, dungeon, {
+      showOnMap: (id) => this.locateRoom(id),
+      editRoom: (id) => this.openEditor(id),
+    });
+    this.placeDialog = new PlaceRoomDialog(document.body, dungeon, {
+      choose: (id) => this.locateRoom(id),
+      editRoom: (id) => this.openEditor(id),
+      addRoom: () => this.openEditor(),
+    });
     this.panel = new ControlPanel(panelRoot, dungeon, {
       rotate: (d) => this.rotate(d),
       toggleMove: () => this.toggleMove(),
@@ -42,7 +55,11 @@ export class Controller {
       deselect: () => this.select(undefined),
       newRoom: () => this.openEditor(),
       editRoom: (id) => this.openEditor(id),
-      locateRoom: (id) => this.locateRoom(id),
+      openJournal: () => {
+        this.picker.close();
+        this.journal.open(this.selectedRoomDefId());
+      },
+      placeRoom: () => this.placeRoom(),
       exportFile: () => this.exportFile(),
       importFile: (file) => void this.importFile(file),
       clearBoard: () => this.clearBoard(),
@@ -134,7 +151,7 @@ export class Controller {
     });
   }
 
-  /** While placing a room from the room list, preview it in the empty slot under the pointer. */
+  /** While placing a room chosen with "Place room", preview it in the empty slot under the pointer. */
   private onSlotHover(slotId: string | undefined): void {
     if (this.placingDefId === undefined) return;
     const free = slotId !== undefined && this.dungeon.checkSlotFree(slotId).ok;
@@ -196,7 +213,24 @@ export class Controller {
     });
   }
 
-  /** From the room list: select a placed room, or arm placing for an unplaced one. */
+  private selectedRoomDefId(): number | undefined {
+    const room = this.selectedId ? this.dungeon.get(this.selectedId) : undefined;
+    return room?.definitionId;
+  }
+
+  /** "Place room" button: open the list of unplaced rooms, or cancel placing. */
+  private placeRoom(): void {
+    if (this.placingDefId !== undefined) {
+      this.placingDefId = undefined;
+      this.panel.setStatus('');
+      this.sync();
+      return;
+    }
+    this.picker.close();
+    this.placeDialog.open();
+  }
+
+  /** Select a placed room, or arm placing for an unplaced one. */
   private locateRoom(id: number): void {
     const def = this.dungeon.catalog.get(id);
     if (!def) return;
@@ -287,7 +321,7 @@ export class Controller {
 
   private onKey(e: KeyboardEvent): void {
     const t = e.target as HTMLElement;
-    if (this.editor.isOpen || this.picker.isOpen || t.closest?.('input, textarea')) return;
+    if (this.editor.isOpen || this.picker.isOpen || this.journal.isOpen || this.placeDialog.isOpen || t.closest?.('input, textarea')) return;
     if (e.key === 'p' || e.key === 'P') return this.toggleMoveParty();
     if (e.key === 'Escape') {
       if (this.movingParty) this.toggleMoveParty();
@@ -315,7 +349,7 @@ export class Controller {
     else if (this.placingDefId !== undefined) targets = this.dungeon.board.all().filter((s) => this.dungeon.checkSlotFree(s.id).ok).map((s) => s.id);
     if (this.ghost && this.ghost.definitionId !== this.placingDefId && !this.pickingSlotId) this.ghost = undefined;
     this.view.setState({ selectedId: this.selectedId, moveTargets: targets, pickingSlotId: this.pickingSlotId, ghost: this.ghost });
-    this.panel?.setState({ selectedId: this.selectedId, moving: this.moving, movingParty: this.movingParty });
+    this.panel?.setState({ selectedId: this.selectedId, moving: this.moving, movingParty: this.movingParty, placingId: this.placingDefId });
   }
 
   private report<T>(res: Result<T>, success?: (value: T) => string): Result<T> {

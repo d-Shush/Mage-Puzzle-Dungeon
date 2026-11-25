@@ -4,6 +4,9 @@ import { fail, ok, type Result, type RoomDefinition, type RoomInput } from './ty
 
 export const NAME_MAX = 40;
 export const DESCRIPTION_MAX = 2000;
+/** Longest image data URL accepted (about 300 KB of text). The editor shrinks pictures well below this. */
+export const IMAGE_MAX = 300_000;
+const IMAGE_PATTERN = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 /** Check and normalise what the DM typed. Exits come back in clockwise order. */
 export function validateRoomInput(input: RoomInput): Result<RoomInput> {
@@ -15,7 +18,13 @@ export function validateRoomInput(input: RoomInput): Result<RoomInput> {
   if (!Object.hasOwn(ROOM_TYPES, input.type)) return fail('Choose a room type: red, blue or green');
   if (!Array.isArray(input.doors) || input.doors.some((d) => !SIDES.includes(d))) return fail('Unknown exit');
   const doors = SIDES.filter((s) => input.doors.includes(s));
-  return ok({ name, description, type: input.type, doors });
+  const image = input.image || undefined;
+  if (image !== undefined) {
+    if (typeof image !== 'string') return fail('The room image must be a PNG, JPEG, WebP or GIF picture');
+    if (image.length > IMAGE_MAX) return fail('The room image is too large');
+    if (!IMAGE_PATTERN.test(image)) return fail('The room image must be a PNG, JPEG, WebP or GIF picture');
+  }
+  return ok({ name, description, type: input.type, doors, ...(image ? { image } : {}) });
 }
 
 function validateDefinition(def: RoomDefinition): Result<RoomDefinition> {

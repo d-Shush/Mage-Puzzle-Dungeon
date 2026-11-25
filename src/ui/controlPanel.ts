@@ -11,7 +11,9 @@ export interface PanelActions {
   deselect(): void;
   newRoom(): void;
   editRoom(id: number): void;
-  locateRoom(id: number): void;
+  openJournal(): void;
+  /** Open the list of unplaced rooms, or cancel placing one. */
+  placeRoom(): void;
   exportFile(): void;
   importFile(file: File): void;
   clearBoard(): void;
@@ -23,14 +25,15 @@ export interface PanelState {
   readonly selectedId?: string;
   readonly moving: boolean;
   readonly movingParty: boolean;
+  /** Room waiting for a click on an empty slot. */
+  readonly placingId?: number;
 }
 
-/** Side panel: selected room, the room list, and file actions. */
+/** Side panel: selected room, party, room journal / place / add buttons, and file actions. */
 export class ControlPanel {
   private readonly status = h('p', { className: 'status', role: 'status' });
   private readonly selection = h('section', { className: 'selection' });
-  private readonly roomList = h('ul', { className: 'room-list' });
-  private readonly roomCount = h('span', { className: 'muted' });
+  private readonly roomsSection = h('section', { className: 'rooms' });
   private readonly partySection = h('section', { className: 'party' });
   /** Filled by the cloud sync panel. */
   readonly syncSlot = h('section', { className: 'sync' });
@@ -54,8 +57,7 @@ export class ControlPanel {
       this.status,
       this.selection,
       this.partySection,
-      h('div', { className: 'section-head' }, h('h2', {}, 'Rooms ', this.roomCount), button('+ New room', () => actions.newRoom(), 'primary')),
-      this.roomList,
+      this.roomsSection,
       h('h2', { textContent: 'Save' }),
       h('p', { className: 'hint', textContent: 'Rooms, the board and the party are saved automatically in this browser.' }),
       h(
@@ -159,38 +161,30 @@ export class ControlPanel {
   private renderRooms(): void {
     const rooms = this.dungeon.catalog.all();
     const placed = rooms.filter((d) => this.dungeon.placementOf(d.id)).length;
-    this.roomCount.textContent = rooms.length ? `${placed}/${rooms.length} placed` : '';
+    const unplaced = rooms.length - placed;
+    const placing = this.state.placingId !== undefined ? this.dungeon.catalog.get(this.state.placingId) : undefined;
 
-    if (rooms.length === 0) {
-      this.roomList.replaceChildren(
-        h('li', { className: 'empty-state' }, h('p', { textContent: 'No rooms yet. Create your first room, then click an empty slot to place it.' })),
-      );
-      return;
-    }
-    this.roomList.replaceChildren(
-      ...rooms.map((def) => {
-        const where = this.dungeon.placementOf(def.id);
-        const locate = h(
-          'button',
-          {
-            type: 'button',
-            className: 'room-row-main',
-            title: `${def.name} (${ROOM_TYPES[def.type].label})${def.description ? `\n${def.description}` : ''}`,
-          },
-          roomTileSvg(def, where?.rotation ?? 0, 26),
-          h('span', { className: 'room-num', textContent: String(def.id) }),
-          h('span', { className: 'room-row-name', textContent: def.name }),
-          h('span', { className: 'visually-hidden', textContent: `, ${ROOM_TYPES[def.type].label}` }),
-          h('span', { className: 'room-where', textContent: where ? where.slotId : 'not placed' }),
-        );
-        locate.addEventListener('click', () => this.actions.locateRoom(def.id));
-        return h(
-          'li',
-          { className: where ? 'is-placed' : '' },
-          locate,
-          button('Edit', () => this.actions.editRoom(def.id), 'small'),
-        );
-      }),
+    const journal = h(
+      'button',
+      { type: 'button', className: 'journal-button' },
+      h('span', { className: 'journal-button-cover', ariaHidden: 'true' }),
+      h(
+        'span',
+        { className: 'journal-button-text' },
+        h('strong', { textContent: 'Room Journal' }),
+        h('span', { textContent: placed ? `${placed} room${placed === 1 ? '' : 's'} on the map` : 'No rooms on the map yet' }),
+      ),
+    );
+    journal.addEventListener('click', () => this.actions.openJournal());
+
+    const place = button(placing ? 'Cancel placing' : 'Place room…', () => this.actions.placeRoom(), placing ? 'active' : '');
+    place.title = placing ? '' : unplaced ? `${unplaced} room${unplaced === 1 ? '' : 's'} not on the map` : 'Every room is on the map';
+
+    this.roomsSection.replaceChildren(
+      h('div', { className: 'section-head' }, h('h2', { textContent: 'Rooms' }), h('span', { className: 'muted', textContent: rooms.length ? `${placed}/${rooms.length} placed` : '' })),
+      journal,
+      h('div', { className: 'row rooms-actions' }, place, button('+ Add room', () => this.actions.newRoom(), 'primary')),
+      ...(placing ? [h('p', { className: 'hint', textContent: `Click an empty slot to place #${placing.id} ${placing.name}.` })] : []),
     );
   }
 }

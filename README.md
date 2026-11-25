@@ -6,7 +6,7 @@ slots outside the grid: **C0** above C1 and **C8** below C7. They start with the
 prismatic rooms **Shaper's Library** and **Unknown**; every other slot starts
 empty.
 
-The DM creates rooms in the app (**+ New room**), each with:
+The DM creates rooms in the app (**+ Add room**), each with:
 
 1. a **name**
 2. a **description for players**
@@ -18,6 +18,10 @@ The DM creates rooms in the app (**+ New room**), each with:
    | **Blue**  | yes, 90° steps  | no                    |
    | **Green** | yes, 90° steps  | yes, to an empty slot |
    | **Prismatic** | no          | no (special rooms like Shaper's Library) |
+
+4. **exits**, and
+5. an optional **image**, drawn on the map instead of the coloured square
+   (cropped to a square and shrunk to 320 px so saves stay small).
 
 4. its **exits**: any of North, East, South, West, shown as gold bars on the
    room's tile. Exits turn with the room.
@@ -65,15 +69,17 @@ device to share one map between them.
 
 ## Controls
 
-- **+ New room** creates a room. **Edit** next to a room changes or deletes it
-  (deleting also takes it off the board).
+- **Room Journal** opens a book of every room on the map: an index on the left,
+  and the room's picture, type, slot and player description on the right.
+  **‹ Previous** / **Next ›** (or the arrow keys) turn the pages; **Show on map**
+  selects the room, **Edit room** changes or deletes it.
+- **Place room…** lists the rooms not on the map yet (each with **Edit**). Pick
+  one, then click an empty slot; a preview follows the pointer over empty
+  slots. Press the button again (or **Esc**) to cancel.
+- **+ Add room** creates a room, optionally with an image.
 - **Click an empty slot** → pick a room, type its number and press Enter, or
   **+ Create new room** to create one straight into that slot. Hovering a room
   in that list (or typing its number) previews it, with its exits, in the slot.
-- **Click a room in the list** to select it on the board, or, if it is not
-  placed yet, then click an empty slot to place it; a preview follows the
-  pointer over empty slots. Each room in the list and the selected room show a
-  small tile with their exits, turned as on the board.
 - **Click a room on the board** to select it. Then: **R** / **Shift+R** rotate,
   **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
@@ -149,7 +155,11 @@ in C0 and C8, and C4 becomes an ordinary slot.
 │       ├── roomEditor.ts    # Create / edit room dialog
 │       ├── exitPicker.ts    # Clickable room tile + checkboxes for exits
 │       ├── roomPicker.ts    # Popover to choose a room for an empty slot
-│       ├── controlPanel.ts  # Side panel: selected room, party, room list, files
+│       ├── controlPanel.ts  # Side panel: selected room, party, rooms buttons, files
+│       ├── roomJournal.ts   # Book-style dialog of the rooms on the map
+│       ├── placeRoomDialog.ts # List of unplaced rooms to place
+│       ├── imageFile.ts     # Crop and shrink a picked room image
+│       ├── modal.ts         # Shared dialog shell
 │       ├── syncPanel.ts     # Cloud sync section and connect dialog
 │       └── dom.ts           # Small DOM helpers
 ├── tests/                   # Vitest unit tests for core/

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RoomCatalog, validateRoomInput } from '../src/core/catalog';
+import { IMAGE_MAX, RoomCatalog, validateRoomInput } from '../src/core/catalog';
 import type { RoomInput } from '../src/core/types';
 
 const input: RoomInput = { name: '  Hall of Echoes ', description: ' Whispers. ', type: 'blue', doors: ['w', 'n', 's'] };
@@ -18,6 +18,16 @@ describe('validateRoomInput', () => {
     expect(validateRoomInput({ ...input, type: 'purple' as never }).ok).toBe(false);
     expect(validateRoomInput({ ...input, doors: ['up' as never] }).ok).toBe(false);
     expect(validateRoomInput({ ...input, doors: ['ne' as never] }).ok).toBe(false); // hex exits are gone
+  });
+
+  it('keeps a valid image and rejects anything else', () => {
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    const res = validateRoomInput({ ...input, image: png });
+    expect(res.ok && res.value.image).toBe(png);
+    expect(validateRoomInput({ ...input, image: '' })).toEqual(validateRoomInput(input));
+    expect(validateRoomInput({ ...input, image: 'https://example.com/a.png' }).ok).toBe(false);
+    expect(validateRoomInput({ ...input, image: 'data:image/svg+xml;base64,PHN2Zz4=' }).ok).toBe(false);
+    expect(validateRoomInput({ ...input, image: `data:image/png;base64,${'A'.repeat(IMAGE_MAX)}` }).ok).toBe(false);
   });
 
   it('allows a room with no exits and no description', () => {

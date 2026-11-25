@@ -19,26 +19,17 @@ export type Rotation = 0 | 1 | 2 | 3;
 
 /**
  * What can be done with a room once it is on the board:
- * - red:   cannot move or rotate
- * - blue:  can rotate, cannot move
- * - green: can rotate and move
+ * - red:       cannot move or rotate
+ * - blue:      can rotate, cannot move
+ * - green:     can rotate and move
+ * - prismatic: cannot move or rotate; special rooms such as Shaper's Library
  */
-export type RoomType = 'red' | 'blue' | 'green';
-
-/**
- * - `slot`: holds a room
- * - `core`: the permanent orb in the middle of the grid; no room
- * - `landmark`: a named place outside the grid (e.g. Shaper's Library); no room
- */
-export type SlotKind = 'slot' | 'core' | 'landmark';
+export type RoomType = 'red' | 'blue' | 'green' | 'prismatic';
 
 export interface SlotDefinition {
-  /** Stable id, also used as the visible label for grid slots (e.g. "D3"). */
+  /** Stable id, also used as the visible label (e.g. "D3"). */
   readonly id: string;
   readonly coord: GridCoord;
-  readonly kind: SlotKind;
-  /** Display name for landmarks. */
-  readonly name?: string;
 }
 
 /** What the DM fills in when creating or editing a room. */
@@ -68,7 +59,7 @@ export interface RoomInstance {
 /** Everything the app keeps: the room catalogue and the board. */
 export interface SaveFile {
   readonly app: 'mage-puzzle-dungeon';
-  readonly version: 4;
+  readonly version: 5;
   readonly rooms: readonly RoomDefinition[];
   readonly board: readonly RoomInstance[];
   /** Slot of the party marker; absent or null when it is not on the board. */

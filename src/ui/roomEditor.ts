@@ -65,7 +65,7 @@ export class RoomEditor {
         this.exits.setType(t);
       });
       const swatch = h('span', { className: 'type-swatch' });
-      swatch.style.background = rules.color;
+      if (t !== 'prismatic') swatch.style.background = rules.color;
       return h(
         'label',
         { className: `type-card type-${t}`, htmlFor: radio.id },

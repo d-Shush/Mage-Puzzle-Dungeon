@@ -91,11 +91,8 @@ export class ControlPanel {
   private renderParty(): void {
     const slotId = this.dungeon.party;
     const room = slotId ? this.dungeon.roomAt(slotId) : undefined;
-    const slot = slotId ? this.dungeon.board.get(slotId) : undefined;
     let where = 'Not on the map';
     if (slotId && room) where = `In ${slotId}, ${this.dungeon.definitionOf(room).name}`;
-    else if (slot?.kind === 'core') where = `At the core (${slotId})`;
-    else if (slot?.kind === 'landmark') where = `At ${slot.name ?? slotId}`;
     else if (slotId) where = `In ${slotId} (no room there yet)`;
 
     const move = button(

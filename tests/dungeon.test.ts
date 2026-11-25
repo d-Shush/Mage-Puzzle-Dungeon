@@ -9,6 +9,7 @@ const TEST_ROOMS: RoomDefinition[] = [
   { id: 1, name: 'Red Room', description: '', type: 'red', doors: ['n'] },
   { id: 2, name: 'Blue Room', description: '', type: 'blue', doors: ['n', 'e'] },
   { id: 3, name: 'Green Room', description: '', type: 'green', doors: [] },
+  { id: 4, name: "Shaper's Library", description: '', type: 'prismatic', doors: ['s'] },
 ];
 
 const unwrap = <T>(res: Result<T>): T => {
@@ -28,19 +29,25 @@ describe('Dungeon', () => {
     expect(dungeon.roomAt('A4')?.instanceId).toBe(room.instanceId);
   });
 
-  it('refuses unknown rooms, unknown slots, occupied slots and the core', () => {
+  it('refuses unknown rooms, unknown slots and occupied slots', () => {
     expect(dungeon.place('A4', 99)).toEqual({ ok: false, error: 'No room with number 99' });
     expect(dungeon.place('Z9', 1).ok).toBe(false);
     unwrap(dungeon.place('A4', 3));
-    expect(dungeon.place('A4', 1).ok).toBe(false);
-    expect(dungeon.place('C4', 1)).toEqual({ ok: false, error: 'The core cannot hold a room' });
-    expect(dungeon.place('LIBRARY', 1)).toEqual({ ok: false, error: "Shaper's Library cannot hold a room" });
+    expect(dungeon.place('A4', 1)).toEqual({ ok: false, error: 'Slot A4 is already occupied' });
+  });
+
+  it('allows rooms in C4 and in the outer slots C0 and C8', () => {
+    unwrap(dungeon.place('C4', 1));
+    unwrap(dungeon.place('C0', 4));
+    unwrap(dungeon.place('C8', 3));
+    expect(dungeon.describeSlot('C0')).toBe("C0, Shaper's Library");
+    expect(dungeon.describeSlot('B2')).toBe('B2');
   });
 
   it('places each room only once', () => {
     unwrap(dungeon.place('A4', 1));
     expect(dungeon.place('B2', 1).ok).toBe(false);
-    expect(dungeon.available().map((d) => d.id)).toEqual([2, 3]);
+    expect(dungeon.available().map((d) => d.id)).toEqual([2, 3, 4]);
   });
 
   it('red rooms cannot rotate or move', () => {
@@ -57,6 +64,12 @@ describe('Dungeon', () => {
     expect(dungeon.move(blue.instanceId, 'B2').ok).toBe(false);
   });
 
+  it('prismatic rooms cannot rotate or move', () => {
+    const lib = unwrap(dungeon.place('C0', 4));
+    expect(dungeon.rotate(lib.instanceId)).toEqual({ ok: false, error: "Shaper's Library is a prismatic room and cannot rotate" });
+    expect(dungeon.move(lib.instanceId, 'B2').ok).toBe(false);
+  });
+
   it('green rooms rotate and move', () => {
     const green = unwrap(dungeon.place('B5', 3));
     expect(unwrap(dungeon.rotate(green.instanceId)).rotation).toBe(1);
@@ -65,17 +78,16 @@ describe('Dungeon', () => {
     expect(dungeon.get(green.instanceId)?.rotation).toBe(1);
   });
 
-  it('does not move onto occupied slots or the core', () => {
+  it('moves only onto empty slots', () => {
     unwrap(dungeon.place('A4', 1));
     const green = unwrap(dungeon.place('B5', 3));
     expect(dungeon.move(green.instanceId, 'A4').ok).toBe(false);
-    expect(dungeon.move(green.instanceId, 'C4').ok).toBe(false);
-    expect(dungeon.move(green.instanceId, 'UNKNOWN').ok).toBe(false);
+    expect(dungeon.move(green.instanceId, 'C4').ok).toBe(true);
     const targets = dungeon.moveTargets(green.instanceId);
     expect(targets).not.toContain('A4');
     expect(targets).not.toContain('C4');
-    expect(targets).not.toContain('LIBRARY');
-    expect(targets).toHaveLength(35 - 3); // grid minus core, A4 and its own slot
+    expect(targets).toContain('C8');
+    expect(targets).toHaveLength(37 - 2); // every slot but A4 and its own
   });
 
   it('takes a deleted room off the board and reflects edits', () => {
@@ -101,7 +113,7 @@ describe('Dungeon', () => {
       { instanceId: 'b', definitionId: 1, slotId: 'B5', rotation: 0 as const },
     ];
     expect(dungeon.load(twice).ok).toBe(false);
-    expect(dungeon.load([{ ...good[0]!, slotId: 'C4' }]).ok).toBe(false);
+    expect(dungeon.load([{ ...good[0]!, slotId: 'X9' }]).ok).toBe(false);
     expect(dungeon.load([{ ...good[0]!, rotation: 4 as never }]).ok).toBe(false);
     expect(dungeon.list()).toEqual(before);
   });
@@ -110,12 +122,11 @@ describe('Dungeon', () => {
 describe('party marker', () => {
   const make = () => new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(TEST_ROOMS));
 
-  it('starts off the map and can go on any slot, including the core and landmarks', () => {
+  it('starts off the map and can go on any slot, empty or not', () => {
     const d = make();
     expect(d.party).toBeUndefined();
     expect(d.setParty('C4').ok).toBe(true);
-    expect(d.setParty('LIBRARY').ok).toBe(true);
-    expect(d.setParty('UNKNOWN').ok).toBe(true);
+    expect(d.setParty('C0').ok).toBe(true);
     expect(d.setParty('A4').ok).toBe(true);
     expect(d.party).toBe('A4');
     expect(d.setParty('Z9').ok).toBe(false);

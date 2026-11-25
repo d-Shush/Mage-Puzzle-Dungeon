@@ -8,7 +8,7 @@ const STORAGE_KEY = 'mage-puzzle-dungeon:v3'; // key kept so hex-board saves are
 export function toSaveFile(dungeon: Dungeon): SaveFile {
   return {
     app: 'mage-puzzle-dungeon',
-    version: 4,
+    version: 5,
     rooms: dungeon.catalog.all(),
     board: dungeon.list(),
     party: dungeon.party ?? null,
@@ -24,28 +24,64 @@ export interface LoadedSave {
   readonly notice?: string;
 }
 
-/**
- * Bring an older save up to the current format. Version 3 was the hex
- * board: its rooms are kept with exits mapped to the four sides, but its
- * slot positions mean nothing on the square grid, so the board is cleared.
- */
-function upgrade(data: unknown): Result<LoadedSave> {
-  const file = data as (Partial<Omit<SaveFile, 'version'>> & { version?: number }) | null;
-  if (file?.app !== 'mage-puzzle-dungeon') return fail('This is not a Mage Puzzle Dungeon save file');
-  if (file.version === 4) return ok({ file: file as SaveFile });
-  if (file.version !== 3) return fail('This save file is from an unknown version of the app');
+type AnySave = Partial<Omit<SaveFile, 'version'>> & { version?: number };
 
+/** Version 3 was the hex board: keep rooms, map exits to four sides, clear the board. */
+function fromHex(file: AnySave): { file: AnySave; notice: string } {
   const rooms = (Array.isArray(file.rooms) ? file.rooms : []).map((r: RoomDefinition) => {
     const doors = new Set((Array.isArray(r?.doors) ? r.doors : []).map((d) => HEX_TO_SQUARE[d as string]).filter(Boolean));
     return { ...r, doors: SIDES.filter((s) => doors.has(s)) };
   });
   const hadPlacements = (Array.isArray(file.board) && file.board.length > 0) || !!file.party;
-  return ok({
+  return {
     file: { app: 'mage-puzzle-dungeon', version: 4, rooms, board: [], party: null },
     notice: hadPlacements
       ? 'Converted from the hex board: rooms kept (NE/SE exits became East, NW/SW became West). Place them on the new grid again.'
       : 'Converted from the hex board: NE/SE exits became East, NW/SW became West.',
-  });
+  };
+}
+
+/**
+ * Version 4 had a fixed core at C4 and two fixed landmarks outside the grid.
+ * Now C4 is an ordinary slot and the landmarks are prismatic rooms in slots
+ * C0 and C8; a party standing on a landmark moves onto its room.
+ */
+function fromRoundGrid(file: AnySave): { file: AnySave; notice: string } {
+  const rooms = [...(Array.isArray(file.rooms) ? file.rooms : [])];
+  const board = [...(Array.isArray(file.board) ? file.board : [])];
+  let nextId = 1 + Math.max(0, ...rooms.map((r) => Number(r?.id) || 0));
+  let nextInstance = 1 + Math.max(0, ...board.map((b) => Number(String(b?.instanceId).replace(/\D/g, '')) || 0));
+  const add = (name: string, slotId: string, doors: Side[]) => {
+    const id = nextId++;
+    rooms.push({ id, name, description: '', type: 'prismatic', doors });
+    board.push({ instanceId: `room-${nextInstance++}`, definitionId: id, slotId, rotation: 0 });
+  };
+  add("Shaper's Library", 'C0', ['s']);
+  add('Unknown', 'C8', ['n']);
+  const party = file.party === 'LIBRARY' ? 'C0' : file.party === 'UNKNOWN' ? 'C8' : file.party === 'C4' ? null : file.party;
+  return {
+    file: { ...file, version: 5, rooms, board, party: party ?? null },
+    notice: "Shaper's Library and Unknown are now prismatic rooms you can edit, and C4 is an ordinary slot.",
+  };
+}
+
+/** Bring an older save up to the current format, one version at a time. */
+function upgrade(data: unknown): Result<LoadedSave> {
+  let file = data as AnySave | null;
+  if (file?.app !== 'mage-puzzle-dungeon') return fail('This is not a Mage Puzzle Dungeon save file');
+  if (![3, 4, 5].includes(file.version ?? 0)) return fail('This save file is from an unknown version of the app');
+  const notices: string[] = [];
+  if (file.version === 3) {
+    const r = fromHex(file);
+    file = r.file;
+    notices.push(r.notice);
+  }
+  if (file.version === 4) {
+    const r = fromRoundGrid(file);
+    file = r.file;
+    notices.push(r.notice);
+  }
+  return ok({ file: file as SaveFile, notice: notices.length ? notices.join(' ') : undefined });
 }
 
 /**

@@ -67,12 +67,15 @@ export class Dungeon {
     return this.catalog.all().filter((d) => !this.placementOf(d.id));
   }
 
-  /** Whether a slot can receive a room (exists, is not the core, is empty). */
+  /** Name a slot for messages: "C0, Shaper's Library" or just "B2" when empty. */
+  describeSlot(slotId: string): string {
+    const room = this.roomAt(slotId);
+    return room ? `${slotId}, ${this.definitionOf(room).name}` : slotId;
+  }
+
+  /** Whether a slot can receive a room (exists and is empty). */
   checkSlotFree(slotId: string): Result<void> {
-    const slot = this.board.get(slotId);
-    if (!slot) return fail(`No slot ${slotId}`);
-    if (slot.kind === 'core') return fail('The core cannot hold a room');
-    if (slot.kind === 'landmark') return fail(`${slot.name ?? slot.id} cannot hold a room`);
+    if (!this.board.get(slotId)) return fail(`No slot ${slotId}`);
     if (this.roomAt(slotId)) return fail(`Slot ${slotId} is already occupied`);
     return ok(undefined);
   }
@@ -94,7 +97,7 @@ export class Dungeon {
 
   /**
    * Put the party marker on a slot, or take it off the board (undefined).
-   * Any slot works, including empty ones, the core and landmarks.
+   * Any slot works, including empty ones.
    */
   setParty(slotId: string | undefined): Result<string | undefined> {
     if (slotId !== undefined && !this.board.get(slotId)) return fail(`No slot ${slotId}`);
@@ -128,7 +131,7 @@ export class Dungeon {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
-    if (!ROOM_TYPES[def.type].canRotate) return fail(`${def.name} is a red room and cannot rotate`);
+    if (!ROOM_TYPES[def.type].canRotate) return fail(`${def.name} is a ${ROOM_TYPES[def.type].label.toLowerCase()} room and cannot rotate`);
     return this.commit({ ...room, rotation: addRotation(room.rotation, direction) });
   }
 
@@ -136,7 +139,7 @@ export class Dungeon {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
-    if (!ROOM_TYPES[def.type].canMove) return fail(`${def.name} is a ${def.type} room and cannot move`);
+    if (!ROOM_TYPES[def.type].canMove) return fail(`${def.name} is a ${ROOM_TYPES[def.type].label.toLowerCase()} room and cannot move`);
     const free = this.checkSlotFree(toSlotId);
     if (!free.ok) return fail(free.error);
     if (!this.moveTargets(instanceId).includes(toSlotId)) return fail(`${def.name} can only move to an adjacent slot`);

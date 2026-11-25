@@ -1,5 +1,6 @@
 import type { Dungeon } from '../core/dungeon';
 import { applySaveFile, loadLocal, saveLocal, toSaveFile } from '../core/persistence';
+import { starterSave } from '../data/rooms';
 import { fail, ok, type Result, type RoomInput } from '../core/types';
 import type { BoardView } from '../render/boardView';
 import { ControlPanel } from './controlPanel';
@@ -48,11 +49,11 @@ export class Controller {
     });
 
     const saved = loadLocal();
-    if (saved !== undefined) {
-      const res = applySaveFile(dungeon, saved);
-      if (!res.ok) this.panel.setStatus(`Saved data could not be loaded: ${res.error}`, true);
-      else if (res.value.notice) this.panel.setStatus(res.value.notice);
-    }
+    const res = applySaveFile(dungeon, saved ?? starterSave());
+    if (!res.ok) {
+      this.panel.setStatus(`Saved data could not be loaded: ${res.error}`, true);
+      applySaveFile(dungeon, starterSave());
+    } else if (res.value.notice) this.panel.setStatus(res.value.notice);
 
     view.setSlotClickHandler((slotId, anchor) => this.onSlotClick(slotId, anchor));
     view.setPartyHandlers({
@@ -144,7 +145,7 @@ export class Controller {
     this.movingParty = false;
     const moved = this.dungeon.party !== undefined;
     this.report(this.dungeon.setParty(slotId), () => {
-      const where = this.dungeon.board.describe(slotId);
+      const where = this.dungeon.describeSlot(slotId);
       return moved ? `Party moved to ${where}` : `Party placed at ${where}`;
     });
     this.sync();

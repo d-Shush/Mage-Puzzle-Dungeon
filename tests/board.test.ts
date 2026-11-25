@@ -24,41 +24,32 @@ describe('grid', () => {
 
 describe('board layout', () => {
   const board = new Board(BOARD_SLOTS);
-  const grid = board.all().filter((s) => s.kind !== 'landmark');
 
-  it('is a 5 × 7 grid labelled A1 to E7', () => {
-    expect(grid).toHaveLength(35);
+  it('is a 5 × 7 grid labelled A1 to E7, plus C0 and C8', () => {
+    expect(board.all()).toHaveLength(37);
     expect(board.get('A1')?.coord).toEqual({ col: 0, row: 0 });
     expect(board.get('E1')?.coord).toEqual({ col: 4, row: 0 });
     expect(board.get('A7')?.coord).toEqual({ col: 0, row: 6 });
     expect(board.get('E7')?.coord).toEqual({ col: 4, row: 6 });
   });
 
-  it('has the core in the middle at C4', () => {
-    expect(board.all().filter((s) => s.kind === 'core').map((s) => s.id)).toEqual(['C4']);
-    expect(board.get('C4')?.coord).toEqual({ col: 2, row: 3 });
-  });
-
-  it("has Shaper's Library above C1 and the Unknown below C7", () => {
-    const lib = board.get('LIBRARY');
-    const unk = board.get('UNKNOWN');
-    expect(lib).toMatchObject({ kind: 'landmark', name: "Shaper's Library", coord: { col: 2, row: -1 } });
-    expect(unk).toMatchObject({ kind: 'landmark', name: 'Unknown', coord: { col: 2, row: 7 } });
-    expect(board.neighbours('LIBRARY').map((s) => s.id)).toEqual(['C1']);
-    expect(board.neighbours('UNKNOWN').map((s) => s.id)).toEqual(['C7']);
-    expect(board.describe('LIBRARY')).toBe("Shaper's Library");
-    expect(board.describe('B2')).toBe('B2');
+  it('has C0 above C1 and C8 below C7, joined to the grid only there', () => {
+    expect(board.get('C0')?.coord).toEqual({ col: 2, row: -1 });
+    expect(board.get('C8')?.coord).toEqual({ col: 2, row: 7 });
+    expect(board.neighbours('C0').map((s) => s.id)).toEqual(['C1']);
+    expect(board.neighbours('C8').map((s) => s.id)).toEqual(['C7']);
   });
 
   it('finds neighbours on the board only', () => {
     expect(board.neighbours('A1').map((s) => s.id).sort()).toEqual(['A2', 'B1']);
     expect(board.neighbours('C4').map((s) => s.id).sort()).toEqual(['B4', 'C3', 'C5', 'D4']);
+    expect(board.neighbours('C1').map((s) => s.id).sort()).toEqual(['B1', 'C0', 'C2', 'D1']);
   });
 
   it('rejects invalid layouts', () => {
-    const slot = { id: 'X', coord: { col: 0, row: 0 }, kind: 'slot' as const };
+    const slot = { id: 'X', coord: { col: 0, row: 0 } };
     expect(() => new Board([slot, slot])).toThrow(/Duplicate/);
     expect(() => new Board([slot, { ...slot, id: 'Y' }])).toThrow(/position/);
-    expect(() => new Board([{ ...slot, kind: 'landmark' }])).toThrow(/name/);
+    expect(() => new Board([{ id: 'Z', coord: { col: 0.5, row: 0 } }])).toThrow(/whole/);
   });
 });

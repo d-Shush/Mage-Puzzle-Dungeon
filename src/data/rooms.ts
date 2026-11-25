@@ -1,12 +1,25 @@
-import type { RoomDefinition } from '../core/types';
+import type { SaveFile } from '../core/types';
 
 /**
- * Rooms built into the app, used only when this browser has no saved data.
- * Normally you create rooms in the app itself ("New room"); they are saved
- * automatically in the browser and can be exported to a file.
+ * What a browser starts with when it has no saved data: the two prismatic
+ * rooms from the reference art, already in their slots above and below the
+ * grid. Everything else is created in the app ("New room").
  *
- * To ship a fixed set instead, export a file from the app and paste its
- * "rooms" list here, e.g.
- *   { id: 1, name: 'Entrance Hall', description: '…', type: 'red', doors: ['n', 's'] }
+ * To ship more built-in rooms, export a file from the app and paste its
+ * "rooms" and "board" lists here.
  */
-export const STARTER_ROOMS: readonly RoomDefinition[] = [];
+export function starterSave(): SaveFile {
+  return {
+    app: 'mage-puzzle-dungeon',
+    version: 5,
+    rooms: [
+      { id: 1, name: "Shaper's Library", description: '', type: 'prismatic', doors: ['s'] },
+      { id: 2, name: 'Unknown', description: '', type: 'prismatic', doors: ['n'] },
+    ],
+    board: [
+      { instanceId: 'room-1', definitionId: 1, slotId: 'C0', rotation: 0 },
+      { instanceId: 'room-2', definitionId: 2, slotId: 'C8', rotation: 0 },
+    ],
+    party: null,
+  };
+}

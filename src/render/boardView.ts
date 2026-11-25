@@ -7,10 +7,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Distance between slot centres, in SVG units. */
 const SPACING = 100;
-/** Radius of a slot's gold ring. */
+/** Half the side of a slot's gold frame. */
 const R = 38;
-/** Radius of a room / core orb inside the ring. */
+/** Half the side of a room tile inside the frame. */
 const ORB = R - 6;
+/** Corner rounding of slots and room tiles. */
+const CORNER = 7;
 const FRAME_PAD = { x: 70, y: 62 };
 
 /** Party token offset from the slot centre: upper left, clear of names and exits. */
@@ -47,6 +49,10 @@ function svg<K extends keyof SVGElementTagNameMap>(
 
 const toPixel = (c: GridCoord) => ({ x: c.col * SPACING, y: c.row * SPACING });
 
+/** A rounded square centred on the origin, `half` from centre to each side. */
+const square = (cls: string, half: number, corner = CORNER) =>
+  svg('rect', { class: cls, x: -half, y: -half, width: half * 2, height: half * 2, rx: corner });
+
 /** Blend a #rrggbb colour towards another (t = 0 … 1). */
 function mix(hex: string, target: string, t: number): string {
   const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
@@ -76,15 +82,14 @@ function wrap(text: string, width: number, maxLines: number): string[] {
 
 interface SlotElements {
   group: SVGGElement;
-  orb: SVGCircleElement;
+  orb: SVGRectElement;
   doors: SVGGElement;
   name: SVGTextElement;
   title: SVGTitleElement;
 }
 
 /**
- * Top-down board drawn in SVG: a grid of round slots in a gold frame, with
- * landmarks outside the grid. It is a read-only projection of the Dungeon
+ * Top-down board drawn in SVG: a grid of square slots in a gold frame. It is a read-only projection of the Dungeon
  * state plus a little view state (selection, targets); input is reported
  * through handlers and never changes state directly.
  */
@@ -166,7 +171,7 @@ export class BoardView {
       const room = this.dungeon.roomAt(slot.id);
       const c = els.group.classList;
       c.toggle('is-filled', !!room);
-      c.toggle('is-empty', !room && slot.kind === 'slot');
+      c.toggle('is-empty', !room);
       c.toggle('is-selected', !!room && room.instanceId === this.state.selectedId);
       c.toggle('is-target', targets.has(slot.id));
       c.toggle('is-dimmed', moving && !targets.has(slot.id) && room?.instanceId !== this.state.selectedId);
@@ -176,7 +181,7 @@ export class BoardView {
       if (room) {
         live.add(room.instanceId);
         this.renderRoom(els, room, slot);
-      } else if (slot.kind === 'slot') {
+      } else {
         els.title.textContent = `${slot.id}: empty, click to place a room`;
         els.group.setAttribute('aria-label', `Slot ${slot.id}, empty`);
       }
@@ -189,7 +194,7 @@ export class BoardView {
     const def = this.dungeon.definitionOf(room);
     const rules = ROOM_TYPES[def.type];
 
-    els.orb.setAttribute('fill', `url(#orb-${def.type})`);
+    els.orb.setAttribute('fill', def.type === 'prismatic' ? 'url(#prism)' : `url(#orb-${def.type})`);
     const lines = wrap(def.name, 9, 2);
     els.name.replaceChildren(
       ...lines.map((line, i) => svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)),
@@ -227,7 +232,7 @@ export class BoardView {
     if (!slot || this.dragging) return;
     const c = toPixel(slot.coord);
     this.placeToken(c.x + PARTY_OFFSET.x, c.y + PARTY_OFFSET.y);
-    const where = this.dungeon.board.describe(slot.id);
+    const where = this.dungeon.describeSlot(slot.id);
     this.partyToken.setAttribute('aria-label', `Party marker at ${where}. Drag it, or press Enter to move it.`);
     this.partyToken.querySelector('title')!.textContent = `The party is at ${where}. Drag to move.`;
   }
@@ -357,9 +362,8 @@ export class BoardView {
       'defs',
       {},
       prism,
-      ...ROOM_TYPE_ORDER.map((t) => orb(`orb-${t}`, ROOM_TYPES[t].color)),
-      svg('radialGradient', { id: 'orb-core', cx: 0.36, cy: 0.3, r: 0.8 }, ...stops([[0, '#6b6178'], [0.35, '#1d1824'], [1, '#040306']])),
-      svg('radialGradient', { id: 'pearl-shine', cx: 0.34, cy: 0.26, r: 0.55 }, ...stops([[0, '#ffffff', 0.9], [0.3, '#ffffff', 0.25], [1, '#ffffff', 0]])),
+      ...ROOM_TYPE_ORDER.filter((t) => t !== 'prismatic').map((t) => orb(`orb-${t}`, ROOM_TYPES[t].color)),
+      svg('linearGradient', { id: 'tile-shine', x1: 0, y1: 0, x2: 0.4, y2: 1 }, ...stops([[0, '#ffffff', 0.45], [0.35, '#ffffff', 0.08], [0.6, '#ffffff', 0], [1, '#000000', 0.25]])),
       svg('radialGradient', { id: 'well', cx: 0.5, cy: 0.42, r: 0.65 }, ...stops([[0, '#1b1722'], [1, '#08070b']])),
       svg('linearGradient', { id: 'gold', x1: 0, y1: 0, x2: 0, y2: 1 }, ...stops([[0, '#ffe7a3'], [0.5, '#d9a441'], [1, '#8f5f17']])),
       svg('linearGradient', { id: 'frame-fill', x1: 0, y1: 0, x2: 1, y2: 1 }, ...stops([[0, '#1a1722'], [0.5, '#121017'], [1, '#18151f']])),
@@ -394,49 +398,22 @@ export class BoardView {
   private buildSlot(slot: SlotDefinition): SlotElements {
     const { x, y } = toPixel(slot.coord);
     const group = svg('g', {
-      class: `slot slot-${slot.kind}`,
+      class: 'slot',
       transform: `translate(${x},${y})`,
       'data-slot': slot.id,
       tabindex: 0,
       role: 'button',
     });
     const title = svg('title');
-    group.append(title, svg('circle', { class: 'party-ring', r: R + 5 }), svg('circle', { class: 'slot-well', r: R }));
+    group.append(title, square('party-ring', R + 5, CORNER + 3), square('slot-well', R));
 
-    const orb = svg('circle', { class: 'room-orb', r: ORB });
+    const orb = square('room-orb', ORB, CORNER - 2);
     const doors = svg('g', { class: 'room-doors' });
     const name = svg('text', { class: 'room-name' });
-    group.append(svg('g', { class: 'slot-room' }, orb, svg('circle', { class: 'orb-shine', r: ORB }), doors, name));
+    group.append(svg('g', { class: 'slot-room' }, orb, square('orb-shine', ORB, CORNER - 2), doors, name));
 
-    if (slot.kind === 'core') {
-      title.textContent = `${slot.id}: the core`;
-      group.setAttribute('aria-label', `Slot ${slot.id}, the core`);
-      group.append(
-        svg('circle', { class: 'core-orb', r: ORB }),
-        svg('circle', { class: 'orb-shine', r: ORB }),
-      );
-    }
-    if (slot.kind === 'landmark') {
-      const label = slot.name ?? slot.id;
-      title.textContent = label;
-      group.setAttribute('aria-label', label);
-      group.append(
-        svg('circle', { class: 'landmark-orb', r: ORB }),
-        svg('circle', { class: 'orb-shine', r: ORB }),
-      );
-      const words = label.toUpperCase().split(/\s+/);
-      const text = svg('text', { class: 'landmark-label', x: R + 18, y: 0 });
-      words.forEach((w, i) =>
-        text.append(svg('tspan', { x: R + 18, dy: i === 0 ? `${-(words.length - 1) * 0.6}em` : '1.2em' }, w)),
-      );
-      group.append(text);
-    }
-
-    group.append(
-      svg('circle', { class: 'slot-rim', r: R }),
-      svg('circle', { class: 'slot-rim-inner', r: R - 4 }),
-    );
-    if (slot.kind === 'slot') group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
+    group.append(square('slot-rim', R), square('slot-rim-inner', R - 4, CORNER - 2));
+    group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
 
     group.addEventListener('click', () => this.onSlotClick(slot.id, group));
     group.addEventListener('keydown', (e) => {
@@ -449,7 +426,7 @@ export class BoardView {
     return { group, orb, doors, name, title };
   }
 
-  /** A glowing gold bar on one side of a room orb. */
+  /** A glowing gold bar on one side of a room tile. */
   private buildDoor(angle: number): SVGGElement {
     const w = R * 0.62;
     const h = 6;

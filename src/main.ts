@@ -5,7 +5,6 @@ import { Board } from './core/board';
 import { RoomCatalog } from './core/catalog';
 import { Dungeon } from './core/dungeon';
 import { BOARD_SLOTS } from './data/board';
-import { STARTER_ROOMS } from './data/rooms';
 import { BoardView } from './render/boardView';
 import { GistStore, parseGistId } from './sync/gistStore';
 import { SyncManager, browserStorage } from './sync/syncManager';
@@ -16,7 +15,7 @@ const boardHost = document.querySelector<HTMLElement>('#board');
 const panelRoot = document.querySelector<HTMLElement>('#panel');
 if (!boardHost || !panelRoot) throw new Error('index.html is missing #board or #panel');
 
-const dungeon = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(STARTER_ROOMS));
+const dungeon = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog());
 const view = new BoardView(boardHost, dungeon);
 // The controller restores this browser's saved data first, so that loading
 // is not mistaken for a new change by the sync below.

@@ -13,7 +13,7 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
 }
 
 /**
- * Exit selector: a room orb with a clickable bar on each side, plus a
+ * Exit selector: a room tile with a clickable bar on each side, plus a
  * labelled checkbox for each exit. Both stay in sync.
  */
 export class ExitPicker {
@@ -21,15 +21,16 @@ export class ExitPicker {
   private selected = new Set<Side>();
   private readonly bars = new Map<Side, SVGGElement>();
   private readonly boxes = new Map<Side, HTMLInputElement>();
-  private readonly orb: SVGCircleElement;
+  private readonly orb: SVGRectElement;
   onChange: () => void = () => {};
 
   constructor(idPrefix: string) {
-    const svg = el('svg', { viewBox: '-90 -90 180 180', class: 'exit-orb', 'aria-hidden': 'true' });
-    svg.append(el('circle', { class: 'exit-well', r: R + 6 }));
-    this.orb = el('circle', { class: 'exit-floor', r: R });
-    svg.append(this.orb, el('circle', { r: R, fill: 'url(#exit-shine)' }));
-    svg.prepend(this.buildDefs());
+    const sq = (half: number, attrs: Record<string, string | number>) =>
+      el('rect', { x: -half, y: -half, width: half * 2, height: half * 2, rx: 9, ...attrs });
+    const svg = el('svg', { viewBox: '-90 -90 180 180', class: 'exit-tile', 'aria-hidden': 'true' });
+    svg.append(sq(R + 6, { class: 'exit-well' }));
+    this.orb = sq(R, { class: 'exit-floor', rx: 7 });
+    svg.append(this.orb, sq(R, { fill: 'url(#tile-shine)', rx: 7 }));
 
     for (const side of SIDES) {
       const g = el('g', { class: 'exit-edge' });
@@ -73,19 +74,9 @@ export class ExitPicker {
     this.render();
   }
 
-  /** Colour the preview orb like a room of this type. */
+  /** Colour the preview tile like a room of this type (gradients come from the board's defs). */
   setType(type: RoomType): void {
-    this.orb.setAttribute('fill', `url(#orb-${type})`);
-  }
-
-  private buildDefs(): SVGDefsElement {
-    const defs = el('defs', {});
-    const shine = el('radialGradient', { id: 'exit-shine', cx: 0.34, cy: 0.26, r: 0.55 });
-    for (const [o, op] of [[0, 0.85], [0.3, 0.2], [1, 0]] as const) {
-      shine.append(el('stop', { offset: o, 'stop-color': '#fff', 'stop-opacity': op }));
-    }
-    defs.append(shine);
-    return defs;
+    this.orb.setAttribute('fill', type === 'prismatic' ? 'url(#prism)' : `url(#orb-${type})`);
   }
 
   private toggle(side: Side, on = !this.selected.has(side)): void {

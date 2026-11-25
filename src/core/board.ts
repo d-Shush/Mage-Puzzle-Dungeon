@@ -13,7 +13,6 @@ export class Board {
       }
       if (this.byId.has(slot.id)) throw new Error(`Duplicate slot id ${slot.id}`);
       if (this.byCoord.has(coordKey(slot.coord))) throw new Error(`Slot ${slot.id}: position already used`);
-      if (slot.kind === 'landmark' && !slot.name) throw new Error(`Landmark ${slot.id} needs a name`);
       this.byId.set(slot.id, slot);
       this.byCoord.set(coordKey(slot.coord), slot);
     }
@@ -25,12 +24,6 @@ export class Board {
 
   get(id: string): SlotDefinition | undefined {
     return this.byId.get(id);
-  }
-
-  /** How to name a slot in messages: landmarks by name, grid slots by label. */
-  describe(id: string): string {
-    const slot = this.byId.get(id);
-    return slot?.name ?? id;
   }
 
   /** Slots sharing a side with the given slot. */

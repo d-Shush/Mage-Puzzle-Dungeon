@@ -15,9 +15,17 @@ export const ROOM_TYPES: Readonly<Record<RoomType, RoomTypeRules>> = {
   red: { canRotate: false, canMove: false, label: 'Red', summary: 'Cannot move or rotate', color: '#8c2a35' },
   blue: { canRotate: true, canMove: false, label: 'Blue', summary: 'Can rotate, cannot move', color: '#2a5490' },
   green: { canRotate: true, canMove: true, label: 'Green', summary: 'Can rotate and move', color: '#2e7a45' },
+  prismatic: {
+    canRotate: false,
+    canMove: false,
+    label: 'Prismatic',
+    summary: 'Cannot move or rotate. For special rooms',
+    // Drawn with a rainbow gradient; this colour is only a fallback.
+    color: '#9b7bff',
+  },
 };
 
-export const ROOM_TYPE_ORDER: readonly RoomType[] = ['red', 'blue', 'green'];
+export const ROOM_TYPE_ORDER: readonly RoomType[] = ['red', 'blue', 'green', 'prismatic'];
 
 /**
  * Where a green room may move:

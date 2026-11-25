@@ -11,6 +11,8 @@
   --red: #ff7d88;
   --blue: #7cb6ff;
   --green: #7fe0a0;
+  --prismatic: #d4b3ff;
+  --prism-gradient: linear-gradient(135deg, #ff5fa2, #ffb347, #c6f25a, #4fd8ff, #8b6bff);
   --display: 'Cinzel', Georgia, 'Times New Roman', serif;
   color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -152,7 +154,7 @@ body {
   display: none;
 }
 .orb-shine {
-  fill: url(#pearl-shine);
+  fill: url(#tile-shine);
   pointer-events: none;
 }
 .room-doors {
@@ -174,33 +176,6 @@ body {
   stroke-width: 2.5px;
 }
 
-.slot-core {
-  cursor: default;
-}
-.core-orb {
-  fill: url(#orb-core);
-}
-.slot-core .slot-rim {
-  stroke: #6b5a85;
-}
-
-.slot-landmark {
-  cursor: default;
-}
-.landmark-orb {
-  fill: url(#prism);
-}
-.slot-landmark .slot-rim {
-  filter: url(#glow);
-}
-.landmark-label {
-  font-family: var(--display);
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  fill: var(--gold);
-  opacity: 0.75;
-  dominant-baseline: central;
-}
 
 @media (hover: hover) {
   .slot.is-empty:hover .slot-rim,
@@ -756,13 +731,16 @@ textarea:focus-visible {
 }
 .type-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 @media (max-width: 520px) {
   .type-cards {
     grid-template-columns: 1fr;
   }
+}
+.type-prismatic .type-swatch {
+  background: var(--prism-gradient) !important;
 }
 .type-card {
   position: relative;
@@ -815,7 +793,7 @@ textarea:focus-visible {
   align-items: center;
   flex-wrap: wrap;
 }
-.exit-orb {
+.exit-tile {
   width: 160px;
   flex: none;
   user-select: none;
@@ -912,4 +890,7 @@ textarea:focus-visible {
 }
 .badge-green {
   color: var(--green);
+}
+.badge-prismatic {
+  color: var(--prismatic);
 }

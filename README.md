@@ -1,10 +1,10 @@
 # Mage Puzzle Dungeon
 
 A browser-based dungeon board for a D&D campaign, seen top-down in 2D. The
-board is a fixed 5 × 7 grid of round slots (columns A–E, rows 1–7). All slots
-start empty except the dark **core** orb in the middle (C4), which never holds
-a room. Two landmarks sit outside the grid: **Shaper's Library** above C1 and
-the **Unknown** below C7. They hold no rooms, but the party can stand there.
+board is a fixed 5 × 7 grid of square slots (columns A–E, rows 1–7), plus two
+slots outside the grid: **C0** above C1 and **C8** below C7. They start with the
+prismatic rooms **Shaper's Library** and **Unknown**; every other slot starts
+empty.
 
 The DM creates rooms in the app (**+ New room**), each with:
 
@@ -17,9 +17,10 @@ The DM creates rooms in the app (**+ New room**), each with:
    | **Red**   | no              | no                    |
    | **Blue**  | yes, 90° steps  | no                    |
    | **Green** | yes, 90° steps  | yes, to an empty slot |
+   | **Prismatic** | no          | no (special rooms like Shaper's Library) |
 
 4. its **exits**: any of North, East, South, West, shown as gold bars on the
-   room's orb. Exits turn with the room.
+   room's tile. Exits turn with the room.
 
 Each room gets a number and can be on the board once.
 
@@ -74,7 +75,7 @@ device to share one map between them.
   **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
   (or **P**) then click a slot, or drag the token. It can sit on any slot,
-  the core or a landmark, and travels with a green room when that room moves.
+  and travels with a green room when that room moves.
 
 ## Saving and cloud sync
 
@@ -107,10 +108,13 @@ and the gist stay.
 ## Slot labels
 
 Columns A–E from the left, rows 1–7 from the top: A1 is top left, E7 bottom
-right, C4 the core. The layout (size, core, landmarks) is in `src/data/board.ts`.
+right. C0 sits above C1 and C8 below C7. The layout is in `src/data/board.ts`;
+the rooms a new browser starts with are in `src/data/rooms.ts`.
 
-Saves from the earlier hex board are converted automatically: rooms are kept,
+Older saves are converted automatically. From the hex board: rooms are kept,
 NE/SE exits become East and NW/SW become West, and rooms need placing again.
+From the round-slot board: Shaper's Library and Unknown become prismatic rooms
+in C0 and C8, and C4 becomes an ordinary slot.
 
 ## Project structure
 
@@ -128,18 +132,18 @@ NE/SE exits become East and NW/SW become West, and rooms need placing again.
 │   │   ├── dungeon.ts       # Board state: place / rotate / move / remove
 │   │   └── persistence.ts   # Save file format, autosave, import validation
 │   ├── data/
-│   │   ├── board.ts         # ★ Board layout: grid size, core, landmarks
-│   │   └── rooms.ts         # Optional built-in rooms (used when nothing is saved)
+│   │   ├── board.ts         # ★ Board layout: grid size, outer slots
+│   │   └── rooms.ts         # Starting rooms for a new browser (Library, Unknown)
 │   ├── sync/
 │   │   ├── remoteStore.ts   # Cloud store interface, errors, revision stamps
 │   │   ├── gistStore.ts     # GitHub Gist implementation (api.github.com)
 │   │   └── syncManager.ts   # Upload / download / conflict logic
 │   ├── render/
-│   │   └── boardView.ts     # SVG board: frame, slots, room orbs, exits, landmarks
+│   │   └── boardView.ts     # SVG board: frame, square slots, room tiles, exits
 │   └── ui/
 │       ├── controller.ts    # Interaction state: selection, move, picker, editor
 │       ├── roomEditor.ts    # Create / edit room dialog
-│       ├── exitPicker.ts    # Clickable room orb + checkboxes for exits
+│       ├── exitPicker.ts    # Clickable room tile + checkboxes for exits
 │       ├── roomPicker.ts    # Popover to choose a room for an empty slot
 │       ├── controlPanel.ts  # Side panel: selected room, party, room list, files
 │       ├── syncPanel.ts     # Cloud sync section and connect dialog
@@ -163,12 +167,7 @@ NE/SE exits become East and NW/SW become West, and rooms need placing again.
 
 ## Built-in rooms
 
-Rooms are normally created in the app. To ship a fixed set with the code
-(used only when a browser has no saved data), export a file and paste its
-`rooms` list into `src/data/rooms.ts`:
-
-```ts
-{ id: 1, name: 'Flooded Crypt', description: 'Knee-deep black water.', type: 'blue', doors: ['n', 'e'] }
-```
-
-Exits are sides before rotation: `n`, `e`, `s`, `w`.
+A browser with no saved data starts from `starterSave()` in
+`src/data/rooms.ts`: Shaper's Library in C0 and Unknown in C8. To ship more
+rooms with the code, export a file from the app and paste its `rooms` and
+`board` lists there. Exits are sides before rotation: `n`, `e`, `s`, `w`.

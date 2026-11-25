@@ -15,7 +15,7 @@ export function validateRoomInput(input: RoomInput): Result<RoomInput> {
   if (!name) return fail('Give the room a name');
   if (name.length > NAME_MAX) return fail(`Keep the name under ${NAME_MAX} characters`);
   if (description.length > DESCRIPTION_MAX) return fail(`Keep the description under ${DESCRIPTION_MAX} characters`);
-  if (!Object.hasOwn(ROOM_TYPES, input.type)) return fail('Choose a room type: red, blue or green');
+  if (!Object.hasOwn(ROOM_TYPES, input.type)) return fail('Choose a room type: red, gold, blue or prismatic');
   if (!Array.isArray(input.doors) || input.doors.some((d) => !SIDES.includes(d))) return fail('Unknown exit');
   const doors = SIDES.filter((s) => input.doors.includes(s));
   const image = input.image || undefined;

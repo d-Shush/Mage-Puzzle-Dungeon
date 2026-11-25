@@ -1,6 +1,7 @@
 import type { Dungeon } from '../core/dungeon';
 import { applySaveFile, loadLocal, saveLocal, toSaveFile } from '../core/persistence';
 import { starterSave } from '../data/rooms';
+import { ROOM_TYPES } from '../core/roomTypes';
 import { fail, ok, type Result, type RoomInput } from '../core/types';
 import type { BoardView } from '../render/boardView';
 import { ControlPanel } from './controlPanel';
@@ -266,7 +267,7 @@ export class Controller {
     if (!this.moving) {
       const res = this.dungeon.moveTargets(this.selectedId).length
         ? ok(undefined)
-        : fail(def.type === 'green' ? `${def.name} has nowhere to move` : `${def.name} is a ${def.type} room and cannot move`);
+        : fail(ROOM_TYPES[def.type].canMove ? `${def.name} has nowhere to move` : `${def.name} is a ${def.type} room and cannot move`);
       if (!res.ok) return void this.report(res);
     }
     this.moving = !this.moving;

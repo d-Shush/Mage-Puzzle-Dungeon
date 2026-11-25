@@ -8,7 +8,7 @@ import { BOARD_SLOTS } from '../src/data/board';
 const TEST_ROOMS: RoomDefinition[] = [
   { id: 1, name: 'Red Room', description: '', type: 'red', doors: ['n'] },
   { id: 2, name: 'Blue Room', description: '', type: 'blue', doors: ['n', 'e'] },
-  { id: 3, name: 'Green Room', description: '', type: 'green', doors: [] },
+  { id: 3, name: 'Gold Room', description: '', type: 'gold', doors: [] },
   { id: 4, name: "Shaper's Library", description: '', type: 'prismatic', doors: ['s'] },
 ];
 
@@ -70,24 +70,11 @@ describe('Dungeon', () => {
     expect(dungeon.move(lib.instanceId, 'B2').ok).toBe(false);
   });
 
-  it('green rooms rotate and move', () => {
-    const green = unwrap(dungeon.place('B5', 3));
-    expect(unwrap(dungeon.rotate(green.instanceId)).rotation).toBe(1);
-    expect(unwrap(dungeon.move(green.instanceId, 'E7')).slotId).toBe('E7');
-    expect(dungeon.roomAt('B5')).toBeUndefined();
-    expect(dungeon.get(green.instanceId)?.rotation).toBe(1);
-  });
-
-  it('moves only onto empty slots', () => {
-    unwrap(dungeon.place('A4', 1));
-    const green = unwrap(dungeon.place('B5', 3));
-    expect(dungeon.move(green.instanceId, 'A4').ok).toBe(false);
-    expect(dungeon.move(green.instanceId, 'C4').ok).toBe(true);
-    const targets = dungeon.moveTargets(green.instanceId);
-    expect(targets).not.toContain('A4');
-    expect(targets).not.toContain('C4');
-    expect(targets).toContain('C8');
-    expect(targets).toHaveLength(37 - 2); // every slot but A4 and its own
+  it('gold rooms cannot rotate or move, like red ones', () => {
+    const gold = unwrap(dungeon.place('B5', 3));
+    expect(dungeon.rotate(gold.instanceId)).toEqual({ ok: false, error: 'Gold Room is a gold room and cannot rotate' });
+    expect(dungeon.move(gold.instanceId, 'E7').ok).toBe(false);
+    expect(dungeon.moveTargets(gold.instanceId)).toEqual([]);
   });
 
   it('takes a deleted room off the board and reflects edits', () => {
@@ -133,21 +120,5 @@ describe('party marker', () => {
     expect(d.party).toBe('A4');
     expect(d.setParty(undefined).ok).toBe(true);
     expect(d.party).toBeUndefined();
-  });
-
-  it('travels with a green room the party is in', () => {
-    const d = make();
-    const green = unwrap(d.place('B5', 3));
-    d.setParty('B5');
-    unwrap(d.move(green.instanceId, 'E7'));
-    expect(d.party).toBe('E7');
-  });
-
-  it('stays put when a different room moves', () => {
-    const d = make();
-    const green = unwrap(d.place('B5', 3));
-    d.setParty('A4');
-    unwrap(d.move(green.instanceId, 'E7'));
-    expect(d.party).toBe('A4');
   });
 });

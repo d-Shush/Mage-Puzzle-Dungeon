@@ -1,5 +1,5 @@
 import type { Dungeon } from '../core/dungeon';
-import { ROOM_TYPES, exitName } from '../core/roomTypes';
+import { ANY_TYPE_MOVES, ROOM_TYPES, exitName } from '../core/roomTypes';
 import type { RoomDefinition } from '../core/types';
 import { roomTileSvg } from '../render/roomTile';
 import { button, h } from './dom';
@@ -69,7 +69,7 @@ export class ControlPanel {
         fileInput,
       ),
       this.syncSlot,
-      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · P move party · Delete take off board · Esc cancel' }),
+      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · P move party · Delete take off board · Esc cancel' }),
     );
     dungeon.subscribe(() => this.render());
     this.render();
@@ -132,6 +132,7 @@ export class ControlPanel {
     ccw.disabled = cw.disabled = !rules.canRotate;
     const move = button(this.state.moving ? 'Cancel move' : 'Move…', () => this.actions.toggleMove(), this.state.moving ? 'active' : '');
     move.disabled = !rules.canMove;
+    move.hidden = !ANY_TYPE_MOVES;
 
     this.selection.replaceChildren(
       h(

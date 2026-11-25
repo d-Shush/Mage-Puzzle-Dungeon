@@ -15,8 +15,8 @@ The DM creates rooms in the app (**+ Add room**), each with:
    | Type      | Rotate          | Move                  |
    | --------- | --------------- | --------------------- |
    | **Red**   | no              | no                    |
+   | **Gold**  | no              | no                    |
    | **Blue**  | yes, 90° steps  | no                    |
-   | **Green** | yes, 90° steps  | yes, to an empty slot |
    | **Prismatic** | no          | no (special rooms like Shaper's Library) |
 
 4. **exits**, and
@@ -81,10 +81,12 @@ device to share one map between them.
   **+ Create new room** to create one straight into that slot. Hovering a room
   in that list (or typing its number) previews it, with its exits, in the slot.
 - **Click a room on the board** to select it. Then: **R** / **Shift+R** rotate,
-  **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
+  **Delete** take off the board, **Esc** cancel. To put a room in another
+  slot, take it off the board and place it again.
+- The green type (rotate and move) was removed. Saves with green rooms load
+  with those rooms turned blue.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
-  (or **P**) then click a slot, or drag the token. It can sit on any slot,
-  and travels with a green room when that room moves.
+  (or **P**) then click a slot, or drag the token. It can sit on any slot.
 
 ## Saving and cloud sync
 
@@ -137,7 +139,7 @@ in C0 and C8, and C4 becomes an ordinary slot.
 │   │   ├── grid.ts          # Grid maths: neighbours, sides, rotation
 │   │   ├── board.ts         # Validated fixed board (slots by id / position)
 │   │   ├── catalog.ts       # Room list: create / edit / delete, validation
-│   │   ├── roomTypes.ts     # What red / blue / green allow, colours, exit names
+│   │   ├── roomTypes.ts     # What red / gold / blue / prismatic allow, colours, exit names
 │   │   ├── dungeon.ts       # Board state: place / rotate / move / remove
 │   │   └── persistence.ts   # Save file format, autosave, import validation
 │   ├── data/
@@ -176,8 +178,9 @@ in C0 and C8, and C4 becomes an ordinary slot.
 - **Square grid** (`col`, `row`). Rooms fill one slot and rotate in 90°
   clockwise steps.
 - **Types apply after placement.** The DM can place or remove any room;
-  red / blue / green restrict what changes afterwards. Set
-  `MOVE_RANGE = 'adjacent'` in `src/core/roomTypes.ts` for sliding-puzzle moves.
+  red / gold / blue / prismatic restrict what changes afterwards. No type
+  moves at the moment; the move code is kept, driven by `canMove` in
+  `src/core/roomTypes.ts` (with `MOVE_RANGE` for sliding-puzzle moves).
 
 ## Built-in rooms
 

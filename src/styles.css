@@ -11,6 +11,7 @@
   --red: #ff7d88;
   --blue: #7cb6ff;
   --green: #7fe0a0;
+  --gold-room: #f2c65c;
   --prismatic: #d4b3ff;
   --prism-gradient: linear-gradient(135deg, #ff5fa2, #ffb347, #c6f25a, #4fd8ff, #8b6bff);
   --display: 'Cinzel', Georgia, 'Times New Roman', serif;
@@ -916,8 +917,8 @@ textarea:focus-visible {
 .badge-blue {
   color: var(--blue);
 }
-.badge-green {
-  color: var(--green);
+.badge-gold {
+  color: var(--gold-room);
 }
 .badge-prismatic {
   color: var(--prismatic);

@@ -20,11 +20,11 @@ export type Rotation = 0 | 1 | 2 | 3;
 /**
  * What can be done with a room once it is on the board:
  * - red:       cannot move or rotate
+ * - gold:      cannot move or rotate (like red, different colour)
  * - blue:      can rotate, cannot move
- * - green:     can rotate and move
  * - prismatic: cannot move or rotate; special rooms such as Shaper's Library
  */
-export type RoomType = 'red' | 'blue' | 'green' | 'prismatic';
+export type RoomType = 'red' | 'gold' | 'blue' | 'prismatic';
 
 export interface SlotDefinition {
   /** Stable id, also used as the visible label (e.g. "D3"). */

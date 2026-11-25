@@ -65,6 +65,18 @@ function fromRoundGrid(file: AnySave): { file: AnySave; notice: string } {
   };
 }
 
+/** The green type (rotate and move) was removed: green rooms become blue, which still rotate. */
+function withoutGreen(file: AnySave): { file: AnySave; notice?: string } {
+  if (!Array.isArray(file.rooms)) return { file };
+  let n = 0;
+  const rooms = file.rooms.map((r) => ((r as { type?: string })?.type === 'green' ? (n++, { ...r, type: 'blue' as const }) : r));
+  if (!n) return { file };
+  return {
+    file: { ...file, rooms },
+    notice: `The green room type was removed: ${n} green room${n === 1 ? ' is' : 's are'} now blue (they can still rotate).`,
+  };
+}
+
 /** Bring an older save up to the current format, one version at a time. */
 function upgrade(data: unknown): Result<LoadedSave> {
   let file = data as AnySave | null;
@@ -81,6 +93,9 @@ function upgrade(data: unknown): Result<LoadedSave> {
     file = r.file;
     notices.push(r.notice);
   }
+  const g = withoutGreen(file);
+  file = g.file;
+  if (g.notice) notices.push(g.notice);
   return ok({ file: file as SaveFile, notice: notices.length ? notices.join(' ') : undefined });
 }
 

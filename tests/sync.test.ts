@@ -49,7 +49,7 @@ function device(cloud: MemoryCloud, storage = memoryStorage()) {
   return { dungeon, sync, storage };
 }
 
-const room = (name: string) => ({ name, description: '', type: 'green' as const, doors: [] });
+const room = (name: string) => ({ name, description: '', type: 'blue' as const, doors: [] });
 
 describe('SyncManager', () => {
   it('creates a cloud save from the first device and loads it on another', async () => {

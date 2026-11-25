@@ -23,7 +23,7 @@ describe('save files', () => {
 
   it('rejects foreign or broken files without changing anything', () => {
     const d = make();
-    d.catalog.create({ name: 'Keep me', description: '', type: 'green', doors: [] });
+    d.catalog.create({ name: 'Keep me', description: '', type: 'gold', doors: [] });
     expect(applySaveFile(d, { hello: 1 }).ok).toBe(false);
     const broken = {
       app: 'mage-puzzle-dungeon',
@@ -33,6 +33,25 @@ describe('save files', () => {
     };
     expect(applySaveFile(d, broken).ok).toBe(false);
     expect(d.catalog.all().map((r) => r.name)).toEqual(['Keep me']);
+  });
+});
+
+describe('removed green type', () => {
+  it('turns green rooms into blue ones and says so', () => {
+    const d = make();
+    const file = {
+      app: 'mage-puzzle-dungeon',
+      version: 5,
+      rooms: [
+        { id: 1, name: 'Slider', description: '', type: 'green', doors: ['n'] },
+        { id: 2, name: 'Vault', description: '', type: 'red', doors: [] },
+      ],
+      board: [{ instanceId: 'room-1', definitionId: 1, slotId: 'B2', rotation: 1 }],
+    };
+    const res = applySaveFile(d, file);
+    expect(res.ok && res.value.notice).toMatch(/1 green room is now blue/);
+    expect(d.catalog.all().map((r) => r.type)).toEqual(['blue', 'red']);
+    expect(d.roomAt('B2')?.rotation).toBe(1);
   });
 });
 

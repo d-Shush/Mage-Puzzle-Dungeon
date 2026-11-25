@@ -19,7 +19,7 @@ export interface EditorOptions {
 
 /**
  * Modal form to create or edit a room: name, player description, type
- * (red / blue / green) and exits.
+ * (red / gold / blue / prismatic) and exits.
  */
 export class RoomEditor {
   private readonly backdrop = h('div', { className: 'modal-backdrop modal-top', hidden: true });

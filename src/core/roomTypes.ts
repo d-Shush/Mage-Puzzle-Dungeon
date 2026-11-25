@@ -13,8 +13,8 @@ export interface RoomTypeRules {
 /** Single source of truth for what each room type allows and how it looks. */
 export const ROOM_TYPES: Readonly<Record<RoomType, RoomTypeRules>> = {
   red: { canRotate: false, canMove: false, label: 'Red', summary: 'Cannot move or rotate', color: '#8c2a35' },
+  gold: { canRotate: false, canMove: false, label: 'Gold', summary: 'Cannot move or rotate', color: '#a8781a' },
   blue: { canRotate: true, canMove: false, label: 'Blue', summary: 'Can rotate, cannot move', color: '#2a5490' },
-  green: { canRotate: true, canMove: true, label: 'Green', summary: 'Can rotate and move', color: '#2e7a45' },
   prismatic: {
     canRotate: false,
     canMove: false,
@@ -25,10 +25,13 @@ export const ROOM_TYPES: Readonly<Record<RoomType, RoomTypeRules>> = {
   },
 };
 
-export const ROOM_TYPE_ORDER: readonly RoomType[] = ['red', 'blue', 'green', 'prismatic'];
+export const ROOM_TYPE_ORDER: readonly RoomType[] = ['red', 'gold', 'blue', 'prismatic'];
+
+/** True when some room type may move (none does at the moment). */
+export const ANY_TYPE_MOVES = Object.values(ROOM_TYPES).some((t) => t.canMove);
 
 /**
- * Where a green room may move:
+ * Where a movable room may move:
  * - 'any'      — any empty slot on the board
  * - 'adjacent' — only an empty slot sharing an edge (sliding-puzzle style)
  */

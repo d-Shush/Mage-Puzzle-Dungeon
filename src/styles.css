@@ -1,0 +1,164 @@
+:root {
+  --bg: #14161c;
+  --panel: #1d2029;
+  --border: #2e3240;
+  --text: #e6e3da;
+  --muted: #8d90a0;
+  --accent: #d9a441;
+  --error: #ff6b6b;
+  --fixed: #8a8f99;
+  --rotatable: #4fa3ff;
+  --movable: #ffb347;
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: 100%;
+}
+
+#scene {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+@media (max-width: 720px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 60vh auto;
+  }
+  #panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+h1 {
+  font-size: 1.2rem;
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+
+h2 {
+  font-size: 0.95rem;
+  margin: 16px 0 8px;
+}
+
+.add-form,
+.row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+input,
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.status.error {
+  color: var(--error);
+}
+
+.selection {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.selection h2 {
+  margin-top: 0;
+}
+
+.selection .row + .row {
+  margin-top: 6px;
+}
+
+.muted,
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.catalog {
+  padding-left: 28px;
+  margin: 0;
+}
+
+.catalog li {
+  padding: 3px 0;
+}
+
+.catalog li > span {
+  vertical-align: middle;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  border: 1px solid currentColor;
+}
+
+.badge-fixed {
+  color: var(--fixed);
+}
+.badge-rotatable {
+  color: var(--rotatable);
+}
+.badge-movable {
+  color: var(--movable);
+}

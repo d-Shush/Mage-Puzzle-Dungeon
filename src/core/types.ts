@@ -39,8 +39,6 @@ export interface SlotDefinition {
   readonly kind: SlotKind;
   /** Display name for landmarks. */
   readonly name?: string;
-  /** Small badge drawn on a landmark. */
-  readonly badge?: 'lock';
 }
 
 /** What the DM fills in when creating or editing a room. */

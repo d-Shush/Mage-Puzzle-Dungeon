@@ -13,7 +13,7 @@ const R = 38;
 const ORB = R - 6;
 const FRAME_PAD = { x: 70, y: 62 };
 
-/** Party token offset from the slot centre: upper left, clear of names, exits and the library badge. */
+/** Party token offset from the slot centre: upper left, clear of names and exits. */
 const PARTY_OFFSET = { x: -R * 0.74, y: -R * 0.74 };
 const PARTY_RADIUS = 11;
 
@@ -437,18 +437,6 @@ export class BoardView {
       svg('circle', { class: 'slot-rim-inner', r: R - 4 }),
     );
     if (slot.kind === 'slot') group.append(svg('text', { class: 'slot-label', y: R * 0.5 }, slot.id));
-    if (slot.badge === 'lock') {
-      const bx = R * 0.72;
-      const by = -R * 0.72;
-      group.append(
-        svg(
-          'g',
-          { class: 'landmark-badge', transform: `translate(${bx},${by})` },
-          svg('circle', { r: 11 }),
-          svg('path', { class: 'keyhole', d: 'M0,-5.5 a3,3 0 1 1 0.01,0 Z M-1.8,-1.5 L1.8,-1.5 L2.6,5.5 L-2.6,5.5 Z' }),
-        ),
-      );
-    }
 
     group.addEventListener('click', () => this.onSlotClick(slot.id, group));
     group.addEventListener('keydown', (e) => {

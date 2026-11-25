@@ -201,14 +201,6 @@ body {
   opacity: 0.75;
   dominant-baseline: central;
 }
-.landmark-badge circle {
-  fill: url(#gold);
-  stroke: #5a3d0e;
-  stroke-width: 1;
-}
-.landmark-badge .keyhole {
-  fill: #3a260a;
-}
 
 @media (hover: hover) {
   .slot.is-empty:hover .slot-rim,

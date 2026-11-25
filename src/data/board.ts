@@ -23,7 +23,7 @@ function buildSlots(): SlotDefinition[] {
   }
   const middle = Math.floor(COLUMNS.length / 2);
   slots.push(
-    { id: 'LIBRARY', name: "Shaper's Library", coord: { col: middle, row: -1 }, kind: 'landmark', badge: 'lock' },
+    { id: 'LIBRARY', name: "Shaper's Library", coord: { col: middle, row: -1 }, kind: 'landmark' },
     { id: 'UNKNOWN', name: 'Unknown', coord: { col: middle, row: ROWS }, kind: 'landmark' },
   );
   return slots;

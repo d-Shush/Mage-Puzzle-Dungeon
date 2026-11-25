@@ -1,15 +1,19 @@
 import type { Dungeon } from '../core/dungeon';
-import { MOBILITY_RULES } from '../core/mobility';
+import { ROOM_TYPES, exitName } from '../core/roomTypes';
+import type { RoomDefinition } from '../core/types';
 import { button, h } from './dom';
 
 export interface PanelActions {
   rotate(direction: 1 | -1): void;
   toggleMove(): void;
-  remove(): void;
+  removeFromBoard(): void;
   deselect(): void;
-  save(): void;
-  load(): void;
-  clear(): void;
+  newRoom(): void;
+  editRoom(id: number): void;
+  locateRoom(id: number): void;
+  exportFile(): void;
+  importFile(file: File): void;
+  clearBoard(): void;
 }
 
 export interface PanelState {
@@ -17,11 +21,12 @@ export interface PanelState {
   readonly moving: boolean;
 }
 
-/** Side panel: selected room details and actions, catalogue, save/load. */
+/** Side panel: selected room, the room list, and file actions. */
 export class ControlPanel {
   private readonly status = h('p', { className: 'status', role: 'status' });
   private readonly selection = h('section', { className: 'selection' });
-  private readonly catalogList = h('ol', { className: 'catalog' });
+  private readonly roomList = h('ul', { className: 'room-list' });
+  private readonly roomCount = h('span', { className: 'muted' });
   private state: PanelState = { moving: false };
 
   constructor(
@@ -29,22 +34,31 @@ export class ControlPanel {
     private readonly dungeon: Dungeon,
     private readonly actions: PanelActions,
   ) {
+    const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, id: 'import-file' });
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) actions.importFile(file);
+      fileInput.value = '';
+    });
+
     root.replaceChildren(
       h('h1', { textContent: 'Mage Puzzle Dungeon' }),
       h('p', { className: 'hint', textContent: 'Click an empty slot to place a room. Click a room to select it.' }),
       this.status,
       this.selection,
-      h('h2', { textContent: 'Room catalogue' }),
-      this.catalogList,
-      h('h2', { textContent: 'Board' }),
+      h('div', { className: 'section-head' }, h('h2', {}, 'Rooms ', this.roomCount), button('+ New room', () => actions.newRoom(), 'primary')),
+      this.roomList,
+      h('h2', { textContent: 'Save' }),
+      h('p', { className: 'hint', textContent: 'Rooms and the board are saved automatically in this browser.' }),
       h(
         'div',
         { className: 'row' },
-        button('Save', () => actions.save()),
-        button('Load', () => actions.load()),
-        button('Clear', () => actions.clear()),
+        button('Export file', () => actions.exportFile()),
+        button('Import file', () => fileInput.click()),
+        button('Clear board', () => actions.clearBoard()),
+        fileInput,
       ),
-      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · Delete remove · Esc cancel' }),
+      h('p', { className: 'hint', textContent: 'Keys: R / Shift+R rotate · M move · Delete take off board · Esc cancel' }),
     );
     dungeon.subscribe(() => this.render());
     this.render();
@@ -62,7 +76,11 @@ export class ControlPanel {
 
   private render(): void {
     this.renderSelection();
-    this.renderCatalog();
+    this.renderRooms();
+  }
+
+  private typeBadge(def: RoomDefinition): HTMLElement {
+    return h('span', { className: `badge badge-${def.type}`, textContent: ROOM_TYPES[def.type].label });
   }
 
   private renderSelection(): void {
@@ -72,7 +90,7 @@ export class ControlPanel {
       return;
     }
     const def = this.dungeon.definitionOf(room);
-    const rules = MOBILITY_RULES[def.mobility];
+    const rules = ROOM_TYPES[def.type];
 
     const ccw = button('⟲ Rotate', () => this.actions.rotate(-1));
     const cw = button('Rotate ⟳', () => this.actions.rotate(1));
@@ -81,32 +99,49 @@ export class ControlPanel {
     move.disabled = !rules.canMove;
 
     this.selection.replaceChildren(
+      h('div', { className: 'selection-head' }, h('h2', { textContent: `#${def.id} ${def.name}` }), this.typeBadge(def)),
+      h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 60}°` }),
+      ...(def.description ? [h('p', { className: 'player-text', textContent: def.description })] : []),
+      h('p', { className: 'muted', textContent: `Exits as built: ${def.doors.length ? def.doors.map(exitName).join(', ') : 'none'}` }),
+      h('div', { className: 'row' }, ccw, cw, move),
       h(
         'div',
-        { className: 'selection-head' },
-        h('span', { className: 'swatch' }),
-        h('h2', { textContent: `#${def.id} ${def.name}` }),
+        { className: 'row' },
+        button('Edit room', () => this.actions.editRoom(def.id)),
+        button('Take off board', () => this.actions.removeFromBoard(), 'danger'),
+        button('Deselect', () => this.actions.deselect()),
       ),
-      h('p', { className: 'muted', textContent: def.description }),
-      h('p', {}, h('span', { className: `badge badge-${def.mobility}`, textContent: `${rules.glyph} ${rules.label}` }), ` Slot ${room.slotId} · ${room.rotation * 60}°`),
-      h('div', { className: 'row' }, ccw, cw, move),
-      h('div', { className: 'row' }, button('Remove', () => this.actions.remove(), 'danger'), button('Deselect', () => this.actions.deselect())),
     );
-    (this.selection.querySelector('.swatch') as HTMLElement).style.background = def.color;
   }
 
-  private renderCatalog(): void {
-    this.catalogList.replaceChildren(
-      ...this.dungeon.catalog.all().map((def) => {
-        const max = def.maxCopies ?? 1;
-        const placed = this.dungeon.placedCount(def.id);
-        const rules = MOBILITY_RULES[def.mobility];
+  private renderRooms(): void {
+    const rooms = this.dungeon.catalog.all();
+    const placed = rooms.filter((d) => this.dungeon.placementOf(d.id)).length;
+    this.roomCount.textContent = rooms.length ? `${placed}/${rooms.length} placed` : '';
+
+    if (rooms.length === 0) {
+      this.roomList.replaceChildren(
+        h('li', { className: 'empty-state' }, h('p', { textContent: 'No rooms yet. Create your first room, then click an empty slot to place it.' })),
+      );
+      return;
+    }
+    this.roomList.replaceChildren(
+      ...rooms.map((def) => {
+        const where = this.dungeon.placementOf(def.id);
+        const locate = h(
+          'button',
+          { type: 'button', className: 'room-row-main', title: def.description || def.name },
+          h('span', { className: 'room-num', textContent: String(def.id) }),
+          h('span', { className: 'room-row-name', textContent: def.name }),
+          this.typeBadge(def),
+          h('span', { className: 'room-where', textContent: where ? where.slotId : 'not placed' }),
+        );
+        locate.addEventListener('click', () => this.actions.locateRoom(def.id));
         return h(
           'li',
-          { value: def.id, title: def.description, className: placed >= max ? 'used' : '' },
-          h('span', { className: 'room-name', textContent: def.name }),
-          h('span', { className: `badge badge-${def.mobility}`, textContent: `${rules.glyph} ${rules.label}` }),
-          h('span', { className: 'count', textContent: `${placed}/${max}` }),
+          { className: where ? 'is-placed' : '' },
+          locate,
+          button('Edit', () => this.actions.editRoom(def.id), 'small'),
         );
       }),
     );

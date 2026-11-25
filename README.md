@@ -4,15 +4,23 @@ A browser-based dungeon board for a D&D campaign, seen top-down in 2D. The
 board is a fixed, symmetric hexagon of 37 hex slots (columns of 4-5-6-7-6-5-4,
 three rings around the centre). All slots start empty except the **prismatic
 core** (G4) in the exact centre, which can never hold a room.
-Click an empty slot to place a room from the fixed catalogue.
 
-Each room is one of:
+The DM creates rooms in the app (**+ New room**), each with:
 
-| Mobility    | Glyph | Can rotate      | Can move               |
-| ----------- | ----- | --------------- | ---------------------- |
-| `fixed`     | ◆     | no              | no                     |
-| `rotatable` | ⟳     | yes, 60° steps  | no                     |
-| `movable`   | ✥     | no              | yes, to an empty slot  |
+1. a **name**
+2. a **description for players**
+3. a **type**:
+
+   | Type      | Glyph | Rotate          | Move                  |
+   | --------- | ----- | --------------- | --------------------- |
+   | **Red**   | ◆     | no              | no                    |
+   | **Blue**  | ⟳     | yes, 60° steps  | no                    |
+   | **Green** | ✥     | yes, 60° steps  | yes, to an empty slot |
+
+4. its **exits**: any of North, North-West, South-West, South, South-East,
+   North-East. Exits turn with the room.
+
+Each room gets a number and can be on the board once.
 
 ## Quick start
 
@@ -39,10 +47,21 @@ The build is a static site with relative paths and the font bundled, so
 
 ## Controls
 
-- **Click an empty slot** → pick a room from the list, or type its number and press Enter.
-- **Click a room** to select it. Then: **R** / **Shift+R** rotate, **M** move
-  (click a highlighted slot), **Delete** remove, **Esc** cancel.
-- **Save / Load** keep the board in this browser's local storage.
+- **+ New room** creates a room. **Edit** next to a room changes or deletes it
+  (deleting also takes it off the board).
+- **Click an empty slot** → pick a room, type its number and press Enter, or
+  **+ Create new room** to create one straight into that slot.
+- **Click a room in the list** to select it on the board, or, if it is not
+  placed yet, then click an empty slot to place it.
+- **Click a room on the board** to select it. Then: **R** / **Shift+R** rotate,
+  **M** move (click a highlighted slot), **Delete** take off the board, **Esc** cancel.
+
+## Saving
+
+Rooms and the board are saved automatically in this browser (local storage).
+**Export file** downloads everything as `mage-puzzle-dungeon.json`; **Import
+file** loads it back, e.g. on another computer. Export regularly: clearing
+browser data deletes the local copy.
 
 ## Slot labels
 
@@ -58,22 +77,24 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
 │   ├── main.ts              # Composition root
 │   ├── styles.css
 │   ├── core/                # Game rules — no DOM, fully unit-tested
-│   │   ├── types.ts         # SlotDefinition, RoomDefinition, RoomInstance, Mobility…
+│   │   ├── types.ts         # SlotDefinition, RoomDefinition, RoomInstance, RoomType…
 │   │   ├── hex.ts           # Hex maths: neighbours, sides, rotation, pixel layout
 │   │   ├── board.ts         # Validated fixed board (slots by id / position)
-│   │   ├── catalog.ts       # Validated room list, looked up by number
-│   │   ├── mobility.ts      # What fixed / rotatable / movable allow (+ move range)
-│   │   ├── dungeon.ts       # Board state: place / rotate / move / remove, save snapshots
-│   │   └── persistence.ts   # localStorage save / load
+│   │   ├── catalog.ts       # Room list: create / edit / delete, validation
+│   │   ├── roomTypes.ts     # What red / blue / green allow, colours, exit names
+│   │   ├── dungeon.ts       # Board state: place / rotate / move / remove
+│   │   └── persistence.ts   # Save file format, autosave, import validation
 │   ├── data/
 │   │   ├── board.ts         # ★ Board layout and slot labels
-│   │   └── rooms.ts         # ★ Room catalogue — edit this to define your rooms
+│   │   └── rooms.ts         # Optional built-in rooms (used when nothing is saved)
 │   ├── render/
 │   │   └── boardView.ts     # SVG board: frame, slots, rooms, doors, prismatic core
 │   └── ui/
-│       ├── controller.ts    # Interaction state: selection, move mode, picker
+│       ├── controller.ts    # Interaction state: selection, move, picker, editor
+│       ├── roomEditor.ts    # Create / edit room dialog
+│       ├── exitPicker.ts    # Clickable hexagon + checkboxes for exits
 │       ├── roomPicker.ts    # Popover to choose a room for an empty slot
-│       ├── controlPanel.ts  # Side panel: selected room, catalogue, save/load
+│       ├── controlPanel.ts  # Side panel: selected room, room list, files
 │       └── dom.ts           # Small DOM helpers
 ├── tests/                   # Vitest unit tests for core/
 ├── public/                  # Static assets served as-is
@@ -82,27 +103,24 @@ the left edge, and G4 the core. Change `label()` in `src/data/board.ts` to renam
 
 ### Design rules
 
-- **State flows one way.** `Dungeon` owns the board; the view and panel
-  subscribe and re-render. All changes go through `Dungeon` methods, which
-  return `{ ok, error }` so the UI can say why an action was refused.
+- **State flows one way.** `RoomCatalog` owns the rooms and `Dungeon` the
+  board; the view and panel subscribe and re-render. All changes go through
+  their methods, which return `{ ok, error }` so the UI can say why an action
+  was refused.
 - **Hex grid in doubled-height coordinates** (`q` column, `r` half-row,
   `q + r` even). Rooms fill one slot and rotate in 60° clockwise steps.
-- **Mobility applies after placement.** The DM can place or remove any room;
-  `fixed` / `rotatable` / `movable` restrict what changes afterwards. Set
-  `MOVE_RANGE = 'adjacent'` in `src/core/mobility.ts` for sliding-puzzle moves.
+- **Types apply after placement.** The DM can place or remove any room;
+  red / blue / green restrict what changes afterwards. Set
+  `MOVE_RANGE = 'adjacent'` in `src/core/roomTypes.ts` for sliding-puzzle moves.
 
-## Adding rooms to the catalogue
+## Built-in rooms
 
-Edit `src/data/rooms.ts`. The current eight rooms are placeholders.
+Rooms are normally created in the app. To ship a fixed set with the code
+(used only when a browser has no saved data), export a file and paste its
+`rooms` list into `src/data/rooms.ts`:
 
 ```ts
-{
-  id: 9,                     // the room's number; must be unique
-  name: 'Flooded Crypt',
-  description: 'Knee-deep black water.',
-  mobility: 'rotatable',     // 'fixed' | 'rotatable' | 'movable'
-  doors: ['n', 'se'],        // hex edges before rotation: n, ne, se, s, sw, nw
-  color: '#2b4a5a',
-  maxCopies: 1,              // optional, how many can be on the board (default 1)
-}
+{ id: 1, name: 'Flooded Crypt', description: 'Knee-deep black water.', type: 'blue', doors: ['n', 'se'] }
 ```
+
+Exits are hex edges before rotation: `n`, `ne`, `se`, `s`, `sw`, `nw`.

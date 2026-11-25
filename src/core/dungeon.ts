@@ -1,18 +1,18 @@
 import type { Board } from './board';
 import type { RoomCatalog } from './catalog';
 import { addRotation } from './hex';
-import { MOBILITY_RULES, MOVE_RANGE } from './mobility';
-import type { DungeonSnapshot, Result, RoomDefinition, RoomInstance } from './types';
+import { MOVE_RANGE, ROOM_TYPES } from './roomTypes';
+import { fail, ok, type Result, type RoomDefinition, type RoomInstance } from './types';
 
 export type DungeonListener = (rooms: readonly RoomInstance[]) => void;
-
-const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-const fail = <T>(error: string): Result<T> => ({ ok: false, error });
 
 /**
  * State of the board and its rules: which room sits in which slot, and what
  * may be rotated or moved. Every mutation returns a Result instead of throwing
  * so the UI can show why an action was refused.
+ *
+ * Listeners are also notified when the room catalogue changes (a room was
+ * edited or deleted), so one subscription keeps the whole UI in sync.
  */
 export class Dungeon {
   private rooms = new Map<string, RoomInstance>();
@@ -22,7 +22,16 @@ export class Dungeon {
   constructor(
     readonly board: Board,
     readonly catalog: RoomCatalog,
-  ) {}
+    /** Throwaway copies used for validation must not listen to the catalogue. */
+    watchCatalog = true,
+  ) {
+    if (!watchCatalog) return;
+    catalog.subscribe(() => {
+      // A deleted room also leaves the board.
+      for (const [id, room] of this.rooms) if (!catalog.get(room.definitionId)) this.rooms.delete(id);
+      this.emit();
+    });
+  }
 
   // ---------- queries ----------
 
@@ -41,23 +50,19 @@ export class Dungeon {
 
   definitionOf(room: RoomInstance): RoomDefinition {
     const def = this.catalog.get(room.definitionId);
-    if (!def) throw new Error(`Unknown room definition ${room.definitionId}`);
+    if (!def) throw new Error(`Unknown room ${room.definitionId}`);
     return def;
   }
 
-  placedCount(definitionId: number): number {
-    let n = 0;
-    for (const room of this.rooms.values()) if (room.definitionId === definitionId) n++;
-    return n;
+  /** Where a catalogue room is on the board, if it is. */
+  placementOf(definitionId: number): RoomInstance | undefined {
+    for (const room of this.rooms.values()) if (room.definitionId === definitionId) return room;
+    return undefined;
   }
 
-  remainingCopies(def: RoomDefinition): number {
-    return (def.maxCopies ?? 1) - this.placedCount(def.id);
-  }
-
-  /** Catalogue rooms that still have a copy left to place. */
+  /** Catalogue rooms not yet on the board. */
   available(): RoomDefinition[] {
-    return this.catalog.all().filter((d) => this.remainingCopies(d) > 0);
+    return this.catalog.all().filter((d) => !this.placementOf(d.id));
   }
 
   /** Whether a slot can receive a room (exists, is not the core, is empty). */
@@ -72,7 +77,7 @@ export class Dungeon {
   /** Slots the given room may move to. Empty if the room cannot move. */
   moveTargets(instanceId: string): string[] {
     const room = this.rooms.get(instanceId);
-    if (!room || !MOBILITY_RULES[this.definitionOf(room).mobility].canMove) return [];
+    if (!room || !ROOM_TYPES[this.definitionOf(room).type].canMove) return [];
     const candidates = MOVE_RANGE === 'adjacent' ? this.board.neighbours(room.slotId) : this.board.all();
     return candidates.filter((s) => this.checkSlotFree(s.id).ok).map((s) => s.id);
   }
@@ -85,13 +90,12 @@ export class Dungeon {
     if (!def) return fail(`No room with number ${definitionId}`);
     const free = this.checkSlotFree(slotId);
     if (!free.ok) return fail(free.error);
-    if (this.remainingCopies(def) <= 0) return fail(`${def.name} is already on the board`);
-
-    const room: RoomInstance = { instanceId: `room-${this.nextId++}`, definitionId, slotId, rotation: 0 };
-    return this.commit(room);
+    const existing = this.placementOf(definitionId);
+    if (existing) return fail(`${def.name} is already on the board in ${existing.slotId}`);
+    return this.commit({ instanceId: `room-${this.nextId++}`, definitionId, slotId, rotation: 0 });
   }
 
-  /** Remove a room from the board. Always allowed (DM correction). */
+  /** Take a room off the board. Always allowed (DM correction). */
   remove(instanceId: string): Result<RoomInstance> {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
@@ -105,7 +109,7 @@ export class Dungeon {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
-    if (!MOBILITY_RULES[def.mobility].canRotate) return fail(`${def.name} cannot be rotated`);
+    if (!ROOM_TYPES[def.type].canRotate) return fail(`${def.name} is a red room and cannot rotate`);
     return this.commit({ ...room, rotation: addRotation(room.rotation, direction) });
   }
 
@@ -113,7 +117,7 @@ export class Dungeon {
     const room = this.rooms.get(instanceId);
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
-    if (!MOBILITY_RULES[def.mobility].canMove) return fail(`${def.name} cannot be moved`);
+    if (!ROOM_TYPES[def.type].canMove) return fail(`${def.name} is a ${def.type} room and cannot move`);
     const free = this.checkSlotFree(toSlotId);
     if (!free.ok) return fail(free.error);
     if (!this.moveTargets(instanceId).includes(toSlotId)) return fail(`${def.name} can only move to an adjacent slot`);
@@ -125,26 +129,29 @@ export class Dungeon {
     this.emit();
   }
 
-  // ---------- persistence ----------
-
-  toSnapshot(): DungeonSnapshot {
-    return { version: 2, rooms: this.list() };
+  /** Replace the whole board. Validates every room; on error nothing changes. */
+  load(rooms: readonly RoomInstance[]): Result<void> {
+    const res = this.check(rooms);
+    if (!res.ok) return res;
+    this.rooms = new Map(rooms.map((r) => [r.instanceId, r]));
+    this.nextId = 1 + Math.max(0, ...rooms.map((r) => Number(r.instanceId.replace(/\D/g, '')) || 0));
+    this.emit();
+    return ok(undefined);
   }
 
-  /** Replace the whole board. Validates every room; on error nothing changes. */
-  loadSnapshot(snapshot: DungeonSnapshot): Result<void> {
-    if (snapshot?.version !== 2 || !Array.isArray(snapshot.rooms)) return fail('Unsupported or corrupt save');
-    const staged = new Dungeon(this.board, this.catalog);
-    for (const r of snapshot.rooms) {
-      if (!this.catalog.get(r.definitionId)) return fail(`Save references unknown room ${r.definitionId}`);
-      if (!Number.isInteger(r.rotation) || r.rotation < 0 || r.rotation > 5) return fail('Corrupt rotation in save');
+  /** Validate a board against this board layout and catalogue. */
+  check(rooms: readonly RoomInstance[]): Result<void> {
+    if (!Array.isArray(rooms)) return fail('Board is missing');
+    const staged = new Dungeon(this.board, this.catalog, false);
+    for (const r of rooms) {
+      if (typeof r?.instanceId !== 'string' || staged.rooms.has(r.instanceId)) return fail('Duplicate or missing room id on the board');
+      if (!this.catalog.get(r.definitionId)) return fail(`Board uses unknown room ${String(r.definitionId)}`);
+      if (staged.placementOf(r.definitionId)) return fail(`Room ${r.definitionId} is on the board twice`);
+      if (!Number.isInteger(r.rotation) || r.rotation < 0 || r.rotation > 5) return fail('Invalid rotation on the board');
       const free = staged.checkSlotFree(r.slotId);
-      if (!free.ok) return fail(`Invalid save: ${free.error}`);
+      if (!free.ok) return fail(free.error);
       staged.rooms.set(r.instanceId, r);
     }
-    this.rooms = staged.rooms;
-    this.nextId = 1 + Math.max(0, ...this.list().map((r) => Number(r.instanceId.replace(/\D/g, '')) || 0));
-    this.emit();
     return ok(undefined);
   }
 

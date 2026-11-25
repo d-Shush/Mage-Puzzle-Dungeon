@@ -1,6 +1,6 @@
 import type { Dungeon } from '../core/dungeon';
 import { hexCorners, hexToPixel, sideAngle } from '../core/hex';
-import { MOBILITY_RULES } from '../core/mobility';
+import { ROOM_TYPES } from '../core/roomTypes';
 import type { RoomInstance, SlotDefinition } from '../core/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -11,6 +11,9 @@ const SIZE = 50;
 const DRAW_SIZE = SIZE * 0.9;
 const APOTHEM = (DRAW_SIZE * Math.sqrt(3)) / 2;
 const FRAME_MARGIN = SIZE * 0.9;
+
+/** Small mark on each room: locked, turns, or turns and moves. */
+const TYPE_GLYPHS = { red: '◆', blue: '⟳', green: '✥' } as const;
 
 export interface BoardViewState {
   readonly selectedId?: string;
@@ -134,22 +137,23 @@ export class BoardView {
 
   private renderRoom(els: SlotElements, room: RoomInstance, slot: SlotDefinition): void {
     const def = this.dungeon.definitionOf(room);
-    const rules = MOBILITY_RULES[def.mobility];
+    const rules = ROOM_TYPES[def.type];
 
-    els.floor.setAttribute('fill', def.color);
+    els.floor.setAttribute('fill', rules.color);
     els.number.textContent = String(def.id);
     els.name.textContent = def.name.length > 14 ? `${def.name.slice(0, 13)}…` : def.name;
-    els.glyph.textContent = rules.glyph;
-    els.glyph.setAttribute('class', `room-glyph glyph-${def.mobility}`);
-    els.title.textContent = `${slot.id} — #${def.id} ${def.name} (${rules.label})`;
+    els.glyph.textContent = TYPE_GLYPHS[def.type];
+    els.title.textContent = `${slot.id} — #${def.id} ${def.name} (${rules.label}: ${rules.summary.toLowerCase()})`;
     els.group.setAttribute('aria-label', `Slot ${slot.id}, room ${def.id} ${def.name}, ${rules.label}`);
 
-    // Rebuild door markers only when the room in this slot changed.
-    if (els.doors.dataset.room !== room.instanceId) {
-      els.doors.dataset.room = room.instanceId;
+    // Rebuild door markers only when the room or its exits changed.
+    const doorKey = `${room.instanceId}:${def.doors.join(',')}`;
+    if (els.doors.dataset.room !== doorKey) {
+      const sameRoom = els.doors.dataset.room?.startsWith(`${room.instanceId}:`);
+      els.doors.dataset.room = doorKey;
       els.doors.replaceChildren(...def.doors.map((side) => this.buildDoor(sideAngle(side))));
       els.doors.style.transition = 'none';
-      this.angles.delete(room.instanceId);
+      if (!sameRoom) this.angles.delete(room.instanceId);
     } else {
       els.doors.style.transition = '';
     }

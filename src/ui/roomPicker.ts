@@ -1,15 +1,14 @@
-import { MOBILITY_RULES } from '../core/mobility';
+import { ROOM_TYPES } from '../core/roomTypes';
 import type { RoomDefinition } from '../core/types';
-import { h } from './dom';
+import { button, h } from './dom';
 
 export interface PickerOption {
   readonly def: RoomDefinition;
-  readonly remaining: number;
 }
 
 /**
  * Popover listing the rooms that can go into an empty slot. Type a room
- * number and press Enter, or click a room.
+ * number and press Enter, click a room, or create a new one.
  */
 export class RoomPicker {
   private readonly el = h('div', { className: 'picker', hidden: true });
@@ -19,7 +18,8 @@ export class RoomPicker {
     host.append(this.el);
     this.el.setAttribute('role', 'dialog');
     document.addEventListener('pointerdown', (e) => {
-      if (!this.el.hidden && !this.el.contains(e.target as Node) && !(e.target as Element).closest?.('.slot')) this.close();
+      const t = e.target as Element;
+      if (!this.el.hidden && !this.el.contains(t) && !t.closest?.('.slot, .modal-backdrop')) this.close();
     });
     this.el.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -38,6 +38,7 @@ export class RoomPicker {
     anchor: Element,
     options: readonly PickerOption[],
     onPick: (definitionId: number) => void,
+    onCreate: () => void,
     onClose: () => void,
   ): void {
     this.onClose = onClose;
@@ -60,19 +61,22 @@ export class RoomPicker {
       list.replaceChildren(
         ...(found.length
           ? found.map((o) => {
-              const rules = MOBILITY_RULES[o.def.mobility];
               const item = h(
                 'button',
                 { type: 'button', className: 'picker-item', title: o.def.description },
                 h('span', { className: 'picker-num', textContent: String(o.def.id) }),
                 h('span', { className: 'picker-name', textContent: o.def.name }),
-                h('span', { className: `badge badge-${o.def.mobility}`, textContent: `${rules.glyph} ${rules.label}` }),
-                ...(o.remaining > 1 ? [h('span', { className: 'picker-count', textContent: `×${o.remaining}` })] : []),
+                h('span', { className: `badge badge-${o.def.type}`, textContent: ROOM_TYPES[o.def.type].label }),
               );
               item.addEventListener('click', () => onPick(o.def.id));
               return h('li', {}, item);
             })
-          : [h('li', { className: 'muted', textContent: options.length ? 'No matching room' : 'All rooms are placed' })]),
+          : [
+              h('li', {
+                className: 'muted picker-empty',
+                textContent: options.length ? 'No matching room' : 'No rooms left to place. Create one below.',
+              }),
+            ]),
       );
     };
     input.addEventListener('input', renderList);
@@ -87,7 +91,11 @@ export class RoomPicker {
     });
     renderList();
 
-    this.el.replaceChildren(h('h3', { textContent: `Place a room in ${slotId}` }), input, list);
+    const create = button('+ Create new room', () => {
+      this.close();
+      onCreate();
+    }, 'picker-create');
+    this.el.replaceChildren(h('h3', { textContent: `Place a room in ${slotId}` }), input, list, create);
     this.el.hidden = false;
     this.position(anchor);
     input.focus({ preventScroll: true });

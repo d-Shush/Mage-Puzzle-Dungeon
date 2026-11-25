@@ -60,6 +60,15 @@ describe('RoomCatalog', () => {
     expect(calls).toBe(3);
   });
 
+  it('does not let rooms become prismatic, but keeps existing prismatic rooms', () => {
+    const catalog = new RoomCatalog([{ id: 1, name: 'Library', description: '', type: 'prismatic', doors: ['s'] }]);
+    expect(catalog.create({ ...input, type: 'prismatic' }).ok).toBe(false);
+    expect(catalog.update(1, { name: 'Library', description: 'Books.', type: 'prismatic', doors: ['s'] }).ok).toBe(true);
+    const made = catalog.create(input);
+    expect(made.ok && catalog.update(made.value.id, { ...input, type: 'prismatic' }).ok).toBe(false);
+    expect(catalog.update(1, { ...input, type: 'gold' }).ok).toBe(true);
+  });
+
   it('replaces all rooms atomically', () => {
     const catalog = new RoomCatalog();
     catalog.create(input);

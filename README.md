@@ -17,7 +17,7 @@ The DM creates rooms in the app (**+ Add room**), each with:
    | **Red**   | no              | no                    |
    | **Gold**  | no              | no                    |
    | **Blue**  | yes, 90° steps  | no                    |
-   | **Prismatic** | no          | no (special rooms like Shaper's Library) |
+   | **Prismatic** | no          | no (only the built-in Shaper's Library and Unknown; not offered for new rooms) |
 
 4. **exits**, and
 5. an optional **image**, drawn on the map instead of the coloured square

@@ -1,5 +1,5 @@
 import { DESCRIPTION_MAX, NAME_MAX } from '../core/catalog';
-import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
+import { CHOOSABLE_TYPES, ROOM_TYPES } from '../core/roomTypes';
 import type { RoomDefinition, RoomInput, RoomType, Result } from '../core/types';
 import { button, h } from './dom';
 import { ExitPicker } from './exitPicker';
@@ -19,7 +19,7 @@ export interface EditorOptions {
 
 /**
  * Modal form to create or edit a room: name, player description, type
- * (red / gold / blue / prismatic) and exits.
+ * (red / gold / blue; special rooms stay prismatic) and exits.
  */
 export class RoomEditor {
   private readonly backdrop = h('div', { className: 'modal-backdrop modal-top', hidden: true });
@@ -90,7 +90,9 @@ export class RoomEditor {
     renderImage();
 
     let type: RoomType = room?.type ?? 'red';
-    const typeCards = ROOM_TYPE_ORDER.map((t) => {
+    // A special (prismatic) room keeps its type; other rooms pick red, gold or blue.
+    const types = room && !CHOOSABLE_TYPES.includes(room.type) ? [room.type] : CHOOSABLE_TYPES;
+    const typeCards = types.map((t) => {
       const rules = ROOM_TYPES[t];
       const radio = h('input', { type: 'radio', name: 'room-type', id: `room-type-${t}`, value: t, checked: t === type });
       radio.addEventListener('change', () => {

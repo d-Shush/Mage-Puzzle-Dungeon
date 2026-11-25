@@ -1,5 +1,5 @@
 import { SIDES } from './grid';
-import { ROOM_TYPES } from './roomTypes';
+import { CHOOSABLE_TYPES, ROOM_TYPES } from './roomTypes';
 import { fail, ok, type Result, type RoomDefinition, type RoomInput } from './types';
 
 export const NAME_MAX = 40;
@@ -73,6 +73,7 @@ export class RoomCatalog {
   }
 
   create(input: RoomInput): Result<RoomDefinition> {
+    if (!CHOOSABLE_TYPES.includes(input.type)) return fail('Choose a room type: red, gold or blue');
     const res = validateRoomInput(input);
     if (!res.ok) return fail(res.error);
     const id = 1 + Math.max(0, ...this.byId.keys());
@@ -83,7 +84,9 @@ export class RoomCatalog {
   }
 
   update(id: number, input: RoomInput): Result<RoomDefinition> {
-    if (!this.byId.has(id)) return fail(`No room with number ${id}`);
+    const old = this.byId.get(id);
+    if (!old) return fail(`No room with number ${id}`);
+    if (input.type !== old.type && !CHOOSABLE_TYPES.includes(input.type)) return fail('Choose a room type: red, gold or blue');
     const res = validateRoomInput(input);
     if (!res.ok) return fail(res.error);
     const def: RoomDefinition = { id, ...res.value };

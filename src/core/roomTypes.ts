@@ -27,6 +27,13 @@ export const ROOM_TYPES: Readonly<Record<RoomType, RoomTypeRules>> = {
 
 export const ROOM_TYPE_ORDER: readonly RoomType[] = ['red', 'gold', 'blue', 'prismatic'];
 
+/**
+ * Types the DM can give a room in the editor. Prismatic is reserved for the
+ * built-in special rooms (Shaper's Library, Unknown): they keep it, but no
+ * other room can become prismatic.
+ */
+export const CHOOSABLE_TYPES: readonly RoomType[] = ['red', 'gold', 'blue'];
+
 /** True when some room type may move (none does at the moment). */
 export const ANY_TYPE_MOVES = Object.values(ROOM_TYPES).some((t) => t.canMove);
 

@@ -760,7 +760,7 @@ textarea:focus-visible {
 }
 .type-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
 @media (max-width: 520px) {

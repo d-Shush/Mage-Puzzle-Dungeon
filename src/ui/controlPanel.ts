@@ -35,6 +35,8 @@ export class ControlPanel {
   private readonly selection = h('section', { className: 'selection' });
   private readonly roomsSection = h('section', { className: 'rooms' });
   private readonly partySection = h('section', { className: 'party' });
+  /** Filled by the saved maps panel. */
+  readonly mapsSlot = h('section', { className: 'saved-maps' });
   /** Filled by the cloud sync panel. */
   readonly syncSlot = h('section', { className: 'sync' });
   private state: PanelState = { moving: false, movingParty: false };
@@ -58,8 +60,9 @@ export class ControlPanel {
       this.selection,
       this.partySection,
       this.roomsSection,
+      this.mapsSlot,
       h('h2', { textContent: 'Save' }),
-      h('p', { className: 'hint', textContent: 'Rooms, the board and the party are saved automatically in this browser.' }),
+      h('p', { className: 'hint', textContent: 'The map you are working on is saved automatically in this browser.' }),
       h(
         'div',
         { className: 'row' },

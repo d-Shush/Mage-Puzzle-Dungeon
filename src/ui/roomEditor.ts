@@ -155,7 +155,7 @@ export class RoomEditor {
     };
 
     this.dialog.replaceChildren(
-      h('h2', { id: 'room-editor-title', textContent: room ? `Edit room #${room.id}` : 'New room' }),
+      h('h2', { id: 'room-editor-title', textContent: room ? `Edit ${room.name}` : 'New room' }),
       ...(opts.note ? [h('p', { className: 'muted', textContent: opts.note })] : []),
       h('div', { className: 'field' }, h('label', { htmlFor: name.id, textContent: 'Name' }), name),
       h(

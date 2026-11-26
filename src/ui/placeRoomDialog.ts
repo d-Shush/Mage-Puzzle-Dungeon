@@ -20,10 +20,11 @@ export class PlaceRoomDialog {
   private readonly search = h('input', {
     type: 'text',
     className: 'picker-search',
-    placeholder: 'Room # or name',
+    placeholder: 'Room name',
     autocomplete: 'off',
   });
   private readonly list = h('ul', { className: 'place-list' });
+  private readonly count = h('span', { className: 'place-count' });
 
   constructor(
     host: HTMLElement,
@@ -38,7 +39,7 @@ export class PlaceRoomDialog {
       e.preventDefault();
       const found = this.matches();
       const q = this.search.value.trim();
-      const pick = found.find((d) => String(d.id) === q) ?? (found.length === 1 ? found[0] : undefined);
+      const pick = found.find((d) => d.name.toLowerCase() === q.toLowerCase()) ?? (found.length === 1 ? found[0] : undefined);
       if (pick) this.choose(pick.id);
     });
     dungeon.subscribe(() => {
@@ -53,7 +54,7 @@ export class PlaceRoomDialog {
   open(): void {
     this.search.value = '';
     this.modal.dialog.replaceChildren(
-      h('h2', { id: 'place-title', textContent: 'Place a room' }),
+      h('h2', { id: 'place-title' }, 'Place a room ', this.count),
       h('p', { className: 'muted', textContent: 'Pick a room, then click an empty slot on the map.' }),
       this.search,
       this.list,
@@ -77,7 +78,7 @@ export class PlaceRoomDialog {
     const q = this.search.value.trim().toLowerCase();
     const rooms = this.dungeon.available();
     if (!q) return rooms;
-    return rooms.filter((d) => String(d.id).startsWith(q) || d.name.toLowerCase().includes(q));
+    return rooms.filter((d) => d.name.toLowerCase().includes(q));
   }
 
   private choose(id: number): void {
@@ -86,6 +87,8 @@ export class PlaceRoomDialog {
   }
 
   private renderList(): void {
+    const left = this.dungeon.available().length;
+    this.count.textContent = `${left} not placed`;
     const found = this.matches();
     if (!found.length) {
       const none = this.dungeon.available().length === 0;
@@ -103,7 +106,6 @@ export class PlaceRoomDialog {
           'button',
           { type: 'button', className: 'room-row-main', title: def.description || def.name },
           roomTileSvg(def, 0, 32),
-          h('span', { className: 'room-num', textContent: String(def.id) }),
           h('span', { className: 'room-row-name', textContent: def.name }),
           h('span', { className: `badge badge-${def.type}`, textContent: ROOM_TYPES[def.type].label }),
         );

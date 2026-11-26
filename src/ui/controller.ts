@@ -1,5 +1,5 @@
 import type { Dungeon } from '../core/dungeon';
-import { applySaveFile, loadLocal, saveLocal, toSaveFile } from '../core/persistence';
+import { applySaveFile, loadLocal, saveLocal, toSaveFile, type LoadedSave } from '../core/persistence';
 import { starterSave } from '../data/rooms';
 import { ROOM_TYPES } from '../core/roomTypes';
 import { fail, ok, type Result, type RoomInput, type Rotation } from '../core/types';
@@ -325,6 +325,18 @@ export class Controller {
     }
     this.select(undefined);
     this.report(applySaveFile(this.dungeon, data), (f) => `Imported ${f.file.rooms.length} rooms from ${file.name}.${f.notice ? ` ${f.notice}` : ''}`);
+  }
+
+  /**
+   * Replace the whole working map, e.g. with a saved map. Cancels whatever
+   * was in progress first. Nothing changes if the data is invalid.
+   */
+  replaceMap(data: unknown): Result<LoadedSave> {
+    this.picker.close();
+    this.placingDefId = undefined;
+    this.ghost = undefined;
+    this.select(undefined);
+    return applySaveFile(this.dungeon, data);
   }
 
   /** Two-step clear: the first press arms it, a second press within 4 s clears. */

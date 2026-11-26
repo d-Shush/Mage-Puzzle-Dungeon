@@ -103,6 +103,26 @@ device to share one map between them.
 - **Party marker** (pink token): **Place party…** / **Move party…** in the panel
   (or **P**) then click a slot, or drag the token. It can sit on any slot.
 
+## Saved maps (several sessions on one device)
+
+**Saved maps** in the side panel keeps named copies of the whole map (rooms,
+board and party) in this browser, so you can keep one per session, or a
+checkpoint before a risky change, and switch between them.
+
+- **Save as new** stores the current map under the typed name (or the suggested
+  "Session N") and marks it **Open**.
+- When the open map has changed since it was saved, **Update "…"** saves the
+  changes into it, and its **Revert** button goes back to the saved version.
+- **Open** puts a saved map on the board. If the board has changes that no
+  saved map holds, it asks for a second click so they are not lost by accident.
+- **New map** starts over from the two starting rooms; **Rename** and
+  **Delete** (click twice) manage the list.
+
+Saved maps are stored in IndexedDB (room images make copies large, and the
+autosave keeps localStorage to itself) and stay on this device. With Cloud
+sync on, opening a saved map also replaces the cloud map. Use **Export file**
+to move a map to another device.
+
 ## Saving and cloud sync
 
 Rooms, the board and the party marker are saved automatically in this browser (local storage).
@@ -156,10 +176,13 @@ in C0 and C8, and C4 becomes an ordinary slot.
 │   │   ├── catalog.ts       # Room list: create / edit / delete, validation
 │   │   ├── roomTypes.ts     # What red / gold / blue / prismatic allow, colours, exit names
 │   │   ├── dungeon.ts       # Board state: place / rotate / move / remove
-│   │   └── persistence.ts   # Save file format, autosave, import validation
+│   │   ├── persistence.ts   # Save file format, autosave, import validation
+│   │   └── savedMaps.ts     # Named copies of the map: save / open / rename / delete
 │   ├── data/
 │   │   ├── board.ts         # ★ Board layout: grid size, outer slots
 │   │   └── rooms.ts         # Starting rooms for a new browser (Library, Unknown)
+│   ├── storage/
+│   │   └── savedMapsBackend.ts # IndexedDB store for saved maps (localStorage fallback)
 │   ├── sync/
 │   │   ├── remoteStore.ts   # Cloud store interface, errors, revision stamps
 │   │   ├── gistStore.ts     # GitHub Gist implementation (api.github.com)
@@ -177,6 +200,7 @@ in C0 and C8, and C4 becomes an ordinary slot.
 │       ├── placeRoomDialog.ts # List of unplaced rooms to place
 │       ├── imageFile.ts     # Crop and shrink a picked room image
 │       ├── modal.ts         # Shared dialog shell
+│       ├── savedMapsPanel.ts # Saved maps section: switch between sessions
 │       ├── syncPanel.ts     # Cloud sync section and connect dialog
 │       └── dom.ts           # Small DOM helpers
 ├── tests/                   # Vitest unit tests for core/

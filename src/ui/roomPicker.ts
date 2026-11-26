@@ -13,7 +13,7 @@ export interface PickerHandlers {
   onPick(definitionId: number): void;
   onCreate(): void;
   onClose(): void;
-  /** The room under the pointer / keyboard focus / typed number changed (undefined: none). */
+  /** The room under the pointer / keyboard focus / typed name changed (undefined: none). */
   onPreview(definitionId: number | undefined): void;
 }
 
@@ -52,8 +52,7 @@ export class RoomPicker {
     };
     const input = h('input', {
       type: 'text',
-      inputMode: 'numeric',
-      placeholder: 'Room # or name',
+      placeholder: 'Room name',
       className: 'picker-search',
       autocomplete: 'off',
     });
@@ -62,7 +61,7 @@ export class RoomPicker {
     const matches = (): PickerOption[] => {
       const q = input.value.trim().toLowerCase();
       if (!q) return [...options];
-      return options.filter((o) => String(o.def.id).startsWith(q) || o.def.name.toLowerCase().includes(q));
+      return options.filter((o) => o.def.name.toLowerCase().includes(q));
     };
     const renderList = () => {
       const found = matches();
@@ -77,7 +76,6 @@ export class RoomPicker {
                   title: o.blocked ? `${o.blocked}. ${o.def.description}`.trim() : o.def.description,
                 },
                 roomTileSvg(o.def, 0, 28),
-                h('span', { className: 'picker-num', textContent: String(o.def.id) }),
                 h('span', { className: 'picker-name', textContent: o.def.name }),
                 h('span', { className: `badge badge-${o.def.type}`, textContent: ROOM_TYPES[o.def.type].label }),
               );
@@ -96,11 +94,12 @@ export class RoomPicker {
             ]),
       );
     };
-    // Preview the room whose number is typed, or the only match.
+    // Preview the room whose name is typed exactly, or the only match.
+    const exactName = (q: string) => options.find((o) => o.def.name.toLowerCase() === q.toLowerCase());
     const previewTyped = () => {
       const q = input.value.trim();
       const found = matches();
-      const typed = options.find((o) => String(o.def.id) === q) ?? (q && found.length === 1 ? found[0] : undefined);
+      const typed = (q ? exactName(q) : undefined) ?? (q && found.length === 1 ? found[0] : undefined);
       onPreview(typed?.def.id);
     };
     input.addEventListener('input', () => {
@@ -112,7 +111,7 @@ export class RoomPicker {
       if (e.key !== 'Enter') return;
       e.preventDefault();
       const q = input.value.trim();
-      const exact = options.find((o) => String(o.def.id) === q);
+      const exact = q ? exactName(q) : undefined;
       const found = matches();
       const pick = exact ?? (found.length === 1 ? found[0] : undefined);
       if (pick) onPick(pick.def.id);
@@ -123,7 +122,14 @@ export class RoomPicker {
       this.close();
       onCreate();
     }, 'picker-create');
-    this.el.replaceChildren(h('h3', { textContent: `Place a room in ${slotId}` }), input, list, create);
+    const free = options.filter((o) => !o.blocked).length;
+    this.el.replaceChildren(
+      h('h3', { textContent: `Place a room in ${slotId}` }),
+      h('p', { className: 'muted picker-total', textContent: `${options.length} room${options.length === 1 ? '' : 's'} not placed${free < options.length ? ` · ${free} fit here` : ''}` }),
+      input,
+      list,
+      create,
+    );
     this.el.hidden = false;
     this.position(anchor);
     input.focus({ preventScroll: true });

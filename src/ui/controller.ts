@@ -224,7 +224,7 @@ export class Controller {
       note: placeInSlot ? `It will be placed in ${placeInSlot}.` : undefined,
       onSave: (input: RoomInput): Result<unknown> => {
         if (room) return this.report(this.dungeon.catalog.update(room.id, input), (d) => `Saved ${d.name}`);
-        const res = this.report(this.dungeon.catalog.create(input), (d) => `Created room #${d.id} ${d.name}`);
+        const res = this.report(this.dungeon.catalog.create(input), (d) => `Created ${d.name}`);
         if (res.ok && placeInSlot) this.placeAndSelect(placeInSlot, res.value.id);
         return res;
       },

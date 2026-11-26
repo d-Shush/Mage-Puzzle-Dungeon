@@ -469,6 +469,10 @@ body {
   border-radius: 10px;
   box-shadow: 0 12px 40px #000c, 0 0 20px #d9a44133;
 }
+.picker-total {
+  margin: 0;
+  font-size: 12px;
+}
 .picker h3 {
   margin: 0;
   font-family: var(--display);
@@ -497,13 +501,6 @@ body {
 }
 .picker-item.is-blocked {
   opacity: 0.45;
-}
-.picker-num {
-  font-family: var(--display);
-  font-weight: 700;
-  color: var(--gold-bright);
-  min-width: 1.6em;
-  text-align: right;
 }
 .picker-name {
   flex: 1;
@@ -649,14 +646,6 @@ button.danger:hover:not(:disabled) {
 }
 .room-row-main:hover {
   background: #2a2036;
-}
-.room-num {
-  font-family: var(--display);
-  font-weight: 700;
-  color: var(--gold-bright);
-  min-width: 1.6em;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 .room-row-name {
   flex: 1;
@@ -1034,6 +1023,16 @@ textarea:focus-visible {
 .place-dialog {
   max-height: calc(100vh - 32px);
 }
+.place-count {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-size: 0.6em;
+  font-weight: 600;
+  vertical-align: middle;
+}
 .place-list {
   list-style: none;
   margin: 0;
@@ -1168,13 +1167,6 @@ textarea:focus-visible {
   color: var(--ink-accent);
   font-weight: 700;
 }
-.journal-toc-num {
-  font-family: var(--display);
-  font-weight: 700;
-  color: var(--ink-accent);
-  min-width: 1.8em;
-  text-align: right;
-}
 .journal-toc-name {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1218,12 +1210,6 @@ textarea:focus-visible {
 }
 .journal-entry-head {
   text-align: center;
-}
-.journal-entry-num {
-  font-family: var(--display);
-  font-size: 0.8rem;
-  letter-spacing: 0.1em;
-  color: var(--ink-soft);
 }
 .journal-entry h3 {
   margin: 2px 0 6px;

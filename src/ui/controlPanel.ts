@@ -145,7 +145,7 @@ export class ControlPanel {
         h(
           'div',
           { className: 'selection-info' },
-          h('div', { className: 'selection-head' }, h('h2', { textContent: `#${def.id} ${def.name}` }), this.typeBadge(def)),
+          h('div', { className: 'selection-head' }, h('h2', { textContent: def.name }), this.typeBadge(def)),
           h('p', { className: 'muted', textContent: `${rules.summary} · Slot ${room.slotId} · turned ${room.rotation * 90}°` }),
         ),
       ),
@@ -188,7 +188,7 @@ export class ControlPanel {
       h('div', { className: 'section-head' }, h('h2', { textContent: 'Rooms' }), h('span', { className: 'muted', textContent: rooms.length ? `${placed}/${rooms.length} placed` : '' })),
       journal,
       h('div', { className: 'row rooms-actions' }, place, button('+ Add room', () => this.actions.newRoom(), 'primary')),
-      ...(placing ? [h('p', { className: 'hint', textContent: `Click an empty slot to place #${placing.id} ${placing.name}.` })] : []),
+      ...(placing ? [h('p', { className: 'hint', textContent: `Click an empty slot to place ${placing.name}.` })] : []),
     );
   }
 }

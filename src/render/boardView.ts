@@ -222,8 +222,8 @@ export class BoardView {
     els.name.replaceChildren(
       ...lines.map((line, i) => svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)),
     );
-    els.title.textContent = `${slot.id}: #${def.id} ${def.name} (${rules.label}, ${rules.summary.toLowerCase()})`;
-    els.group.setAttribute('aria-label', `Slot ${slot.id}, room ${def.id} ${def.name}, ${rules.label}`);
+    els.title.textContent = `${slot.id}: ${def.name} (${rules.label}, ${rules.summary.toLowerCase()})`;
+    els.group.setAttribute('aria-label', `Slot ${slot.id}, room ${def.name}, ${rules.label}`);
 
     // Rebuild exit markers only when the room or its exits changed.
     const doorKey = `${room.instanceId}:${def.doors.join(',')}`;

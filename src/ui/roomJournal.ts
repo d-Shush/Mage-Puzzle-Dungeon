@@ -98,7 +98,6 @@ export class RoomJournal {
               const item = h(
                 'button',
                 { type: 'button', className: 'journal-toc-item' },
-                h('span', { className: 'journal-toc-num', textContent: String(e.def.id) }),
                 h('span', { className: 'journal-toc-name', textContent: e.def.name }),
                 h('span', { className: 'journal-toc-dots', ariaHidden: 'true' }),
                 h('span', { className: 'journal-toc-slot', textContent: e.room.slotId }),
@@ -146,7 +145,6 @@ export class RoomJournal {
       h(
         'header',
         { className: 'journal-entry-head' },
-        h('span', { className: 'journal-entry-num', textContent: `No. ${def.id}` }),
         h('h3', { textContent: def.name }),
         h(
           'p',

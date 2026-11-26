@@ -1,7 +1,7 @@
 import type { Dungeon } from '../core/dungeon';
 import { sideAngle } from '../core/grid';
 import { ROOM_TYPES, ROOM_TYPE_ORDER } from '../core/roomTypes';
-import type { GridCoord, RoomInstance, SlotDefinition } from '../core/types';
+import type { GridCoord, RoomInstance, Rotation, SlotDefinition } from '../core/types';
 import { roomImageGroup, roomTileGroup } from './roomTile';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -27,7 +27,7 @@ export interface BoardViewState {
   /** Slot whose room picker is open. */
   readonly pickingSlotId?: string;
   /** Preview of a room about to be placed: drawn see-through in that slot. */
-  readonly ghost?: { readonly slotId: string; readonly definitionId: number };
+  readonly ghost?: { readonly slotId: string; readonly definitionId: number; readonly rotation: Rotation };
 }
 
 /** Pointer (or keyboard focus) entered a slot, or left the board (undefined). */
@@ -257,7 +257,7 @@ export class BoardView {
       this.ghost.dataset.key = '';
       return;
     }
-    const key = `${slot.id}:${def.id}:${def.type}:${def.doors.join(',')}:${def.name}:${def.image?.length ?? 0}:${def.image?.slice(-32) ?? ''}`;
+    const key = `${slot.id}:${def.id}:${g.rotation}:${def.type}:${def.doors.join(',')}:${def.name}:${def.image?.length ?? 0}:${def.image?.slice(-32) ?? ''}`;
     if (this.ghost.dataset.key === key) return;
     this.ghost.dataset.key = key;
     const { x, y } = toPixel(slot.coord);
@@ -266,7 +266,7 @@ export class BoardView {
     const name = svg('text', { class: 'room-name' });
     lines.forEach((line, i) => name.append(svg('tspan', { x: 0, dy: i === 0 ? `${-(lines.length - 1) * 0.55}em` : '1.1em' }, line)));
     this.ghost.classList.toggle('has-image', !!def.image);
-    this.ghost.replaceChildren(roomTileGroup(def, 0, ORB), name);
+    this.ghost.replaceChildren(roomTileGroup(def, g.rotation, ORB), name);
   }
 
   // ---------- party marker ----------

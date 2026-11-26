@@ -1,8 +1,10 @@
 import type { Board } from './board';
 import type { RoomCatalog } from './catalog';
-import { addRotation } from './grid';
+import { SIDES, addRotation, neighbour, rotateSide } from './grid';
 import { MOVE_RANGE, ROOM_TYPES } from './roomTypes';
-import { fail, ok, type Result, type RoomDefinition, type RoomInstance } from './types';
+import { fail, ok, type Result, type RoomDefinition, type RoomInstance, type Rotation, type Side } from './types';
+
+const opposite = (side: Side): Side => SIDES[(SIDES.indexOf(side) + 2) % 4] as Side;
 
 export type DungeonListener = (rooms: readonly RoomInstance[]) => void;
 
@@ -80,6 +82,68 @@ export class Dungeon {
     return ok(undefined);
   }
 
+  /** Sides of a room's slot that have an exit, after rotation. */
+  exitsOf(def: RoomDefinition, rotation: Rotation): Side[] {
+    return def.doors.map((d) => rotateSide(d, rotation));
+  }
+
+  /** Rooms on the board sharing a side with the slot, with the side they are on. */
+  private neighbourRooms(slotId: string): { side: Side; room: RoomInstance }[] {
+    const slot = this.board.get(slotId);
+    if (!slot) return [];
+    const out: { side: Side; room: RoomInstance }[] = [];
+    for (const side of SIDES) {
+      const c = neighbour(slot.coord, side);
+      const next = this.board.all().find((s) => s.coord.col === c.col && s.coord.row === c.row);
+      const room = next && this.roomAt(next.id);
+      if (room) out.push({ side, room });
+    }
+    return out;
+  }
+
+  /**
+   * Neighbouring slots a room in `slotId` would connect to: its exit on that
+   * side meets an exit of the neighbouring room.
+   */
+  connections(slotId: string, def: RoomDefinition, rotation: Rotation): string[] {
+    const exits = new Set(this.exitsOf(def, rotation));
+    return this.neighbourRooms(slotId)
+      .filter(({ side, room }) => exits.has(side) && this.exitsOf(this.definitionOf(room), room.rotation).includes(opposite(side)))
+      .map(({ room }) => room.slotId);
+  }
+
+  /**
+   * Whether a catalogue room can go into a slot, and in which rotation.
+   * - The slot must be free and, unless the board is empty, next to a room.
+   * - The room must connect: one of its exits meets an exit of a neighbour.
+   *   Rooms that rotate try each rotation, starting from `preferred`; the
+   *   others are checked as they are.
+   */
+  placementRotation(slotId: string, definitionId: number, preferred: Rotation = 0): Result<Rotation> {
+    const def = this.catalog.get(definitionId);
+    if (!def) return fail(`No room with number ${definitionId}`);
+    const free = this.checkSlotFree(slotId);
+    if (!free.ok) return fail(free.error);
+    const existing = this.placementOf(definitionId);
+    if (existing) return fail(`${def.name} is already on the board in ${existing.slotId}`);
+    if (this.rooms.size === 0) return ok(preferred);
+    if (this.neighbourRooms(slotId).length === 0) return fail(`${slotId} is not next to a room. Rooms can only be placed next to a room on the board`);
+    if (!ROOM_TYPES[def.type].canRotate) {
+      if (this.connections(slotId, def, 0).length) return ok(0);
+      return fail(`${def.name} cannot go in ${slotId}: none of its exits meets an exit of a neighbouring room`);
+    }
+    for (let step = 0; step < 4; step++) {
+      const rotation = addRotation(preferred, step);
+      if (this.connections(slotId, def, rotation).length) return ok(rotation);
+    }
+    return fail(`${def.name} cannot go in ${slotId}: no rotation connects it to a neighbouring room`);
+  }
+
+  /** Empty slots the catalogue room can be placed in. */
+  placementTargets(definitionId: number): string[] {
+    return this.board.all().filter((s) => this.placementRotation(s.id, definitionId).ok).map((s) => s.id);
+  }
+
   /** Slots the given room may move to. Empty if the room cannot move. */
   moveTargets(instanceId: string): string[] {
     const room = this.rooms.get(instanceId);
@@ -106,15 +170,14 @@ export class Dungeon {
     return ok(slotId);
   }
 
-  /** Place a catalogue room (by number) into an empty slot. */
+  /**
+   * Place a catalogue room (by number) into an empty slot next to a room it
+   * connects to. Rooms that rotate are turned to the first rotation that connects.
+   */
   place(slotId: string, definitionId: number): Result<RoomInstance> {
-    const def = this.catalog.get(definitionId);
-    if (!def) return fail(`No room with number ${definitionId}`);
-    const free = this.checkSlotFree(slotId);
-    if (!free.ok) return fail(free.error);
-    const existing = this.placementOf(definitionId);
-    if (existing) return fail(`${def.name} is already on the board in ${existing.slotId}`);
-    return this.commit({ instanceId: `room-${this.nextId++}`, definitionId, slotId, rotation: 0 });
+    const rotation = this.placementRotation(slotId, definitionId);
+    if (!rotation.ok) return fail(rotation.error);
+    return this.commit({ instanceId: `room-${this.nextId++}`, definitionId, slotId, rotation: rotation.value });
   }
 
   /** Take a room off the board. Always allowed (DM correction). */
@@ -132,7 +195,13 @@ export class Dungeon {
     if (!room) return fail('Room not found');
     const def = this.definitionOf(room);
     if (!ROOM_TYPES[def.type].canRotate) return fail(`${def.name} is a ${ROOM_TYPES[def.type].label.toLowerCase()} room and cannot rotate`);
-    return this.commit({ ...room, rotation: addRotation(room.rotation, direction) });
+    // With rooms around it, a room must stay connected: skip rotations that are not.
+    if (this.neighbourRooms(room.slotId).length === 0) return this.commit({ ...room, rotation: addRotation(room.rotation, direction) });
+    for (let step = 1; step < 4; step++) {
+      const rotation = addRotation(room.rotation, direction * step);
+      if (this.connections(room.slotId, def, rotation).length) return this.commit({ ...room, rotation });
+    }
+    return fail(`${def.name} has no other rotation that connects to a neighbouring room`);
   }
 
   move(instanceId: string, toSlotId: string): Result<RoomInstance> {

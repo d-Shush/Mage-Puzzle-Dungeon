@@ -37,9 +37,10 @@ describe('Dungeon', () => {
   });
 
   it('allows rooms in C4 and in the outer slots C0 and C8', () => {
-    unwrap(dungeon.place('C4', 1));
-    unwrap(dungeon.place('C0', 4));
-    unwrap(dungeon.place('C8', 3));
+    for (const [slotId, id] of [['C4', 1], ['C0', 4], ['C8', 3]] as const) {
+      expect(dungeon.check([{ instanceId: 'x', definitionId: id, slotId, rotation: 0 }]).ok).toBe(true);
+    }
+    unwrap(dungeon.load([{ instanceId: 'room-1', definitionId: 4, slotId: 'C0', rotation: 0 }]));
     expect(dungeon.describeSlot('C0')).toBe("C0, Shaper's Library");
     expect(dungeon.describeSlot('B2')).toBe('B2');
   });
@@ -92,7 +93,7 @@ describe('Dungeon', () => {
     unwrap(dungeon.place('A4', 3));
     const good = [{ instanceId: 'room-7', definitionId: 1, slotId: 'B3', rotation: 0 as const }];
     expect(dungeon.load(good).ok).toBe(true);
-    expect(unwrap(dungeon.place('C3', 2)).instanceId).toBe('room-8');
+    expect(unwrap(dungeon.place('B2', 2)).instanceId).toBe('room-8'); // blue: turned to meet B3's north exit
 
     const before = dungeon.list();
     const twice = [
@@ -103,6 +104,63 @@ describe('Dungeon', () => {
     expect(dungeon.load([{ ...good[0]!, slotId: 'X9' }]).ok).toBe(false);
     expect(dungeon.load([{ ...good[0]!, rotation: 4 as never }]).ok).toBe(false);
     expect(dungeon.list()).toEqual(before);
+  });
+});
+
+describe('placement rules', () => {
+  const ROOMS: RoomDefinition[] = [
+    { id: 1, name: 'Anchor', description: '', type: 'prismatic', doors: ['s'] },
+    { id: 2, name: 'Red N', description: '', type: 'red', doors: ['n'] },
+    { id: 3, name: 'Red E', description: '', type: 'red', doors: ['e'] },
+    { id: 4, name: 'Blue E', description: '', type: 'blue', doors: ['e'] },
+    { id: 5, name: 'Blue EW', description: '', type: 'blue', doors: ['e', 'w'] },
+    { id: 6, name: 'Blank', description: '', type: 'gold', doors: [] },
+    { id: 7, name: 'Gold N', description: '', type: 'gold', doors: ['n'] },
+  ];
+  let d: Dungeon;
+  beforeEach(() => {
+    d = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(ROOMS));
+    unwrap(d.place('C0', 1)); // empty board: anywhere
+  });
+
+  it('only places rooms next to a room on the board', () => {
+    expect(d.place('A4', 2)).toEqual({ ok: false, error: 'A4 is not next to a room. Rooms can only be placed next to a room on the board' });
+    expect(d.placementTargets(2)).toEqual(['C1']);
+  });
+
+  it('red and gold rooms need an exit that meets a neighbour exit', () => {
+    expect(d.place('C1', 3).ok).toBe(false); // exit east, Anchor's exit is south
+    expect(d.place('C1', 6).ok).toBe(false); // no exits at all
+    expect(unwrap(d.place('C1', 2)).rotation).toBe(0);
+    expect(d.place('C2', 7).ok).toBe(false); // Red N has no south exit
+  });
+
+  it('a neighbour whose exit faces a wall does not count as a connection', () => {
+    unwrap(d.place('C1', 2));
+    // B1 is next to C1, but C1 has no west exit.
+    expect(d.place('B1', 3).ok).toBe(false);
+  });
+
+  it('blue rooms are turned to a rotation that connects', () => {
+    expect(unwrap(d.place('C1', 4)).rotation).toBe(3); // east exit turned to face north
+    expect(d.roomAt('C1')).toBeDefined();
+  });
+
+  it('blue rooms only rotate to rotations that stay connected', () => {
+    const blue = unwrap(d.place('C1', 5)); // E/W: needs a quarter turn to face north
+    expect(blue.rotation).toBe(1);
+    expect(unwrap(d.rotate(blue.instanceId)).rotation).toBe(3); // skips 2, which faces east/west
+    expect(unwrap(d.rotate(blue.instanceId, -1)).rotation).toBe(1);
+    const only = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(ROOMS));
+    unwrap(only.place('C0', 1));
+    const single = unwrap(only.place('C1', 4));
+    expect(only.rotate(single.instanceId)).toEqual({ ok: false, error: 'Blue E has no other rotation that connects to a neighbouring room' });
+  });
+
+  it('rooms with no neighbours rotate freely', () => {
+    const lone = new Dungeon(new Board(BOARD_SLOTS), new RoomCatalog(ROOMS));
+    const blue = unwrap(lone.place('B3', 4));
+    expect(unwrap(lone.rotate(blue.instanceId)).rotation).toBe(1);
   });
 });
 

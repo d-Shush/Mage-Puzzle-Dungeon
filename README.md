@@ -28,6 +28,21 @@ The DM creates rooms in the app (**+ Add room**), each with:
 
 Each room gets a number and can be on the board once.
 
+### Placement rules
+
+- A room can only go **next to a room already on the board** (sharing a side).
+  The only exception is an empty board, where the first room can go anywhere.
+- It must **connect**: at least one of its exits has to meet an exit of a
+  neighbouring room on the shared side.
+- **Red, gold and prismatic** rooms are checked as they are; if none of their
+  exits meets a neighbour's exit, placing is refused.
+- **Blue** rooms are turned automatically to the first rotation that connects
+  (the preview shows that rotation). Rotating them afterwards skips rotations
+  that would leave them unconnected; a blue room with no neighbours turns freely.
+- While placing, only slots where the room fits are highlighted. In the room
+  list of an empty slot, rooms that cannot connect there are greyed out.
+- Loaded and imported saves are not re-checked, so older maps still open.
+
 ## Quick start
 
 ```bash
@@ -177,8 +192,9 @@ in C0 and C8, and C4 becomes an ordinary slot.
   was refused.
 - **Square grid** (`col`, `row`). Rooms fill one slot and rotate in 90°
   clockwise steps.
-- **Types apply after placement.** The DM can place or remove any room;
-  red / gold / blue / prismatic restrict what changes afterwards. No type
+- **Placement needs a connection.** A room goes next to a room it connects to
+  (`placementRotation` in `src/core/dungeon.ts`); red / gold / blue / prismatic
+  also restrict what changes afterwards. The DM can always remove a room. No type
   moves at the moment; the move code is kept, driven by `canMove` in
   `src/core/roomTypes.ts` (with `MOVE_RANGE` for sliding-puzzle moves).
 

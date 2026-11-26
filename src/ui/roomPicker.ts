@@ -5,6 +5,8 @@ import { button, h } from './dom';
 
 export interface PickerOption {
   readonly def: RoomDefinition;
+  /** Why the room cannot go into this slot; shown greyed out with this note. */
+  readonly blocked?: string;
 }
 
 export interface PickerHandlers {
@@ -69,12 +71,18 @@ export class RoomPicker {
           ? found.map((o) => {
               const item = h(
                 'button',
-                { type: 'button', className: 'picker-item', title: o.def.description },
+                {
+                  type: 'button',
+                  className: o.blocked ? 'picker-item is-blocked' : 'picker-item',
+                  title: o.blocked ? `${o.blocked}. ${o.def.description}`.trim() : o.def.description,
+                },
                 roomTileSvg(o.def, 0, 28),
                 h('span', { className: 'picker-num', textContent: String(o.def.id) }),
                 h('span', { className: 'picker-name', textContent: o.def.name }),
                 h('span', { className: `badge badge-${o.def.type}`, textContent: ROOM_TYPES[o.def.type].label }),
               );
+              if (o.blocked) item.setAttribute('aria-description', o.blocked);
+              // Blocked rooms stay clickable so the DM sees why placing them is refused.
               item.addEventListener('click', () => onPick(o.def.id));
               item.addEventListener('pointerenter', () => onPreview(o.def.id));
               item.addEventListener('focus', () => onPreview(o.def.id));

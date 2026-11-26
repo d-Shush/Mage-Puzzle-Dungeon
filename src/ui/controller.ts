@@ -2,7 +2,7 @@ import type { Dungeon } from '../core/dungeon';
 import { applySaveFile, loadLocal, saveLocal, toSaveFile } from '../core/persistence';
 import { starterSave } from '../data/rooms';
 import { ROOM_TYPES } from '../core/roomTypes';
-import { fail, ok, type Result, type RoomInput } from '../core/types';
+import { fail, ok, type Result, type RoomInput, type Rotation } from '../core/types';
 import type { BoardView } from '../render/boardView';
 import { ControlPanel } from './controlPanel';
 import { PlaceRoomDialog } from './placeRoomDialog';
@@ -24,7 +24,7 @@ export class Controller {
   private placingDefId: number | undefined;
   private pickingSlotId: string | undefined;
   /** Room shown see-through in a slot before it is placed. */
-  private ghost: { slotId: string; definitionId: number } | undefined;
+  private ghost: { slotId: string; definitionId: number; rotation: Rotation } | undefined;
   private clearArmedUntil = 0;
   readonly panel: ControlPanel;
   private readonly picker: RoomPicker;
@@ -111,6 +111,8 @@ export class Controller {
     }
 
     if (this.placingDefId !== undefined && this.dungeon.checkSlotFree(slotId).ok) {
+      const fits = this.dungeon.placementRotation(slotId, this.placingDefId);
+      if (!fits.ok) return void this.report(fits);
       const id = this.placingDefId;
       this.placingDefId = undefined;
       this.placeAndSelect(slotId, id);
@@ -132,13 +134,22 @@ export class Controller {
       this.panel.setStatus(free.error);
       return;
     }
+    if (this.dungeon.list().length && !this.dungeon.board.neighbours(slotId).some((s) => this.dungeon.roomAt(s.id))) {
+      this.picker.close();
+      this.panel.setStatus(`${slotId} is not next to a room. Rooms can only be placed next to a room on the board`, true);
+      return;
+    }
     this.openPicker(slotId, anchor);
   }
 
   private openPicker(slotId: string, anchor: Element): void {
     this.pickingSlotId = slotId;
     this.sync();
-    this.picker.open(slotId, anchor, this.dungeon.available().map((def) => ({ def })), {
+    const options = this.dungeon.available().map((def) => {
+      const fits = this.dungeon.placementRotation(slotId, def.id);
+      return { def, blocked: fits.ok ? undefined : 'No exit connects here' };
+    });
+    this.picker.open(slotId, anchor, options, {
       onPick: (definitionId) => {
         this.picker.close();
         this.placeAndSelect(slotId, definitionId);
@@ -148,19 +159,26 @@ export class Controller {
         this.pickingSlotId = undefined;
         this.sync();
       },
-      onPreview: (definitionId) => this.setGhost(definitionId === undefined ? undefined : { slotId, definitionId }),
+      onPreview: (definitionId) => this.setGhost(definitionId === undefined ? undefined : this.ghostFor(slotId, definitionId)),
     });
   }
 
   /** While placing a room chosen with "Place room", preview it in the empty slot under the pointer. */
   private onSlotHover(slotId: string | undefined): void {
     if (this.placingDefId === undefined) return;
-    const free = slotId !== undefined && this.dungeon.checkSlotFree(slotId).ok;
-    this.setGhost(free ? { slotId: slotId!, definitionId: this.placingDefId } : undefined);
+    const fits = slotId !== undefined && this.dungeon.placementRotation(slotId, this.placingDefId).ok;
+    this.setGhost(fits ? this.ghostFor(slotId!, this.placingDefId) : undefined);
   }
 
-  private setGhost(ghost: { slotId: string; definitionId: number } | undefined): void {
-    if (ghost?.slotId === this.ghost?.slotId && ghost?.definitionId === this.ghost?.definitionId) return;
+  /** Preview of a room in a slot, turned the way it would be placed. */
+  private ghostFor(slotId: string, definitionId: number): { slotId: string; definitionId: number; rotation: Rotation } {
+    const fits = this.dungeon.placementRotation(slotId, definitionId);
+    return { slotId, definitionId, rotation: fits.ok ? fits.value : 0 };
+  }
+
+  private setGhost(ghost: { slotId: string; definitionId: number; rotation: Rotation } | undefined): void {
+    const g = this.ghost;
+    if (ghost?.slotId === g?.slotId && ghost?.definitionId === g?.definitionId && ghost?.rotation === g?.rotation) return;
     this.ghost = ghost;
     this.sync();
   }
@@ -242,7 +260,12 @@ export class Controller {
     }
     this.select(undefined);
     this.placingDefId = id;
-    this.panel.setStatus(`Click an empty slot to place ${def.name}. Esc cancels.`);
+    this.panel.setStatus(
+      this.dungeon.placementTargets(id).length
+        ? `Click a highlighted slot to place ${def.name}. Esc cancels.`
+        : `${def.name} has no slot where it connects to a room. Esc cancels.`,
+      !this.dungeon.placementTargets(id).length,
+    );
     this.sync();
   }
 
@@ -347,7 +370,7 @@ export class Controller {
     let targets: string[] | undefined;
     if (this.movingParty) targets = this.dungeon.board.all().map((s) => s.id);
     else if (this.moving && this.selectedId) targets = this.dungeon.moveTargets(this.selectedId);
-    else if (this.placingDefId !== undefined) targets = this.dungeon.board.all().filter((s) => this.dungeon.checkSlotFree(s.id).ok).map((s) => s.id);
+    else if (this.placingDefId !== undefined) targets = this.dungeon.placementTargets(this.placingDefId);
     if (this.ghost && this.ghost.definitionId !== this.placingDefId && !this.pickingSlotId) this.ghost = undefined;
     this.view.setState({ selectedId: this.selectedId, moveTargets: targets, pickingSlotId: this.pickingSlotId, ghost: this.ghost });
     this.panel?.setState({ selectedId: this.selectedId, moving: this.moving, movingParty: this.movingParty, placingId: this.placingDefId });

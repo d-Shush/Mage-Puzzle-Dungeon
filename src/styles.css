@@ -495,6 +495,9 @@ body {
   background: #2a2036;
   border-color: var(--border);
 }
+.picker-item.is-blocked {
+  opacity: 0.45;
+}
 .picker-num {
   font-family: var(--display);
   font-weight: 700;
